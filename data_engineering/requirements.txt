@@ -1,0 +1,4 @@
+psycopg-binary
+sqlparse
+python-dotenv
+pandas
