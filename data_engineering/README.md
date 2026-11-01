@@ -13,3 +13,13 @@ Daily Data Engineering lessons.
     - zones that had zero pickups that month (LEFT JOIN ... WHERE trip is NULL)  
     - any trips whose Location ID has no matching zone  
     - Why does LEFT JOIN trips t ON … WHERE t.fare_amount > 10 drop the zero-pickup zones? Where would you move that condition to keep them?  
+
+## Day2: SQL Deep Dive  
+
+### Tasks
+Queries:
+1. Trips and average fare per passenger_count
+2. Total revenue per day, sorted by date
+3. Pickup zones with more than 1,000 trips (HAVING)
+4. Average tip % per payment_type, counting only trips with fare > 0 (WHERE + GROUP BY)
+5. COUNT(*) vs COUNT(tip_amount) side by side. Explain any difference.
