@@ -46,7 +46,7 @@ def get_historical_data(client, symbol, start_date, end_date, timeframe=TimeFram
     return bars.df
 
 if __name__ == "__main__":
-    logger.info("Starting day1 script")
+    logger.info("Starting day2 script")
 
     # Get Alpaca client and fetch historical data
     client = get_alpaca_client(StockHistoricalDataClient)
@@ -79,4 +79,4 @@ if __name__ == "__main__":
     logger.info(f"Years: {years:.2f}")
     logger.info((out * 100).round(2).to_string())
 
-    logger.info("End day1 script")
+    logger.info("End day2 script")

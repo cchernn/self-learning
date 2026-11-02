@@ -40,6 +40,11 @@ R_total = e^{r_total} - 1
 2. Three daily log returns are +0.02, −0.01 and +0.03. What is the total simple return?  
 3. You hold 60% SPY and 40% TLT. To get today’s portfolio return as a weighted average, which return type should you use, and why?  
 
+### Answers
+1. 1.2 × 0.8 = 0.96, so −4%. It isn’t 0%: compounding punishes symmetric swings.
+2. The log returns sum to 0.06, and e^0.06 − 1 ≈ +6.18%.
+3. No, not exactly. Convert to simple returns first: AAPL = e^0.04 − 1 = 4.081%, SPY = 0%. The portfolio’s simple return is 2.041%, so its log return is ln(1.02041) ≈ 0.0202, not 0.0200. Log returns add up over time, but across assets it’s simple returns that combine linearly.
+
 ## Day 2: Annualizing Returns, CAGR, Arithmetic vs Geometric Mean, Volatility Drag  
 
 Annualizing  
@@ -81,3 +86,57 @@ geometric ≈ arithmetic − σ²/2
 1. A strategy returns +20%, −10%, +20%, −10% over 4 years. What are the arithmetic mean and the CAGR?
 1. Strategies A and B both have an arithmetic annual mean of 12%. A has σ = 15% and B has σ = 40%. Use the drag approximation to estimate each one’s geometric return.
 1. True or false: if you multiply a daily mean simple return by 252, you get the CAGR.
+
+### Answers
+1. Arithmetic = (20 − 10 + 20 − 10)/4 = 5%. Growth = 1.2 × 0.9 × 1.2 × 0.9 = 1.1664, so CAGR = 1.1664^(1/4) − 1 ≈ 3.92%.
+2. A: 12% − 0.15²/2 = 12% − 1.125% ≈ 10.9%. B: 12% − 0.40²/2 = 12% − 8% ≈ 4%. The averages are the same, but the compounded results are very different.
+3. False. That gives an annualized arithmetic mean, which ignores compounding and volatility drag, so it overstates CAGR. Use (V_end/V_start)^(1/years) − 1 or the geometric mean instead.  
+
+## Day 3: Volatility  
+
+### Concept  
+
+1. Volatility = standard deviation of returns  
+```
+σ = sqrt( Σ (rₜ − r̄)² / (N − 1) )
+
+Tiny example. Five daily returns: +1%, −2%, +0.5%, +1.5%, −1%
+
+Mean = 0%
+Squared deviations: 1, 4, 0.25, 2.25, 1 → sum = 8.5 (in %²)
+8.5 / 4 = 2.125 → σ_daily = √2.125 ≈ 1.46%
+```
+
+2. Square-root-of-time scaling  
+```
+Var(n days) = n · Var(1 day) → σₙ = σ₁ · √n
+
+Annual: σ_annual = σ_daily × √252
+The example above: 1.46% × 15.87 ≈ 23.1% a year
+Weekly: × √5. Monthly: × √21
+```
+
+3. Rolling volatility  
+Vol isn’t constant. It clusters: calm periods stay calm, and wild periods stay wild. A rolling window shows this:
+
+21-day window (about 1 month): reacts fast but is noisy
+63 or 252-day window: smooth but slow to react
+EWMA (exponentially weighted): gives more weight to recent days, a good middle ground. RiskMetrics uses λ = 0.94.
+
+
+### What to look for  
+- Annualized vol: SPY is probably around 17–20%, QQQ higher, AAPL around 28–32%, TLT lower than SPY.
+- Sqrt-rule ratios: mostly between 0.8 and 1.1. A value clearly below 1 suggests short-term mean reversion. The n=63 numbers are noisy because there are few data points.
+- The SPY 21-day max should land in March 2020, probably above 80% annualized. The min should be a calm stretch, roughly 5–8%.
+- Vol clustering correlation: should be clearly positive (often 0.5 or more). Vol is fairly predictable, much more than returns are.
+
+### Quiz
+1. A stock’s daily vol is 1.2%. What is its annualized vol?
+2. A strategy’s annualized vol is 20%. What is a typical daily move? What about a typical weekly move?
+3. You measure 5-day vol from non-overlapping weekly returns and get 15% less than daily vol × √5. What does that tell you about the returns, and why does it matter if you annualize a weekly-rebalanced strategy’s vol from its daily P&L?  
+
+### Answers  
+
+1. 1.2% × √252 ≈ 1.2% × 15.87 ≈ 19.0%
+2. Daily: 20% / √252 ≈ 1.26%. Weekly: 1.26% × √5 ≈ 2.8% (or 20% / √52 ≈ 2.8%)
+3. The returns are negatively autocorrelated (some mean reversion): up days tend to be partly undone. If you annualize daily vol with √252, you overstate the risk the strategy really carries over longer horizons. The general lesson: the √n rule assumes independent returns, so check that before you trust a scaled number. Positive autocorrelation would bias it the other way, which is more dangerous.
