@@ -70,3 +70,47 @@ in the [CALL] lines:
 1. Make it "enum": ["buy", "sell"] in the input schema. That shows the model the exact valid values. Still normalise or validate in the handler as a backstop, since the schema isn’t a guarantee.
 2. The model can’t reliably tell them apart. It picks one more or less at random, and if you add a second similar pair you get confused trajectories and wasted calls. Merge them into one tool, or make the difference explicit in both the names and the descriptions (e.g. get_quote returns bid/ask/size, get_last_trade_price returns only the last trade).
 3. The tool description. It’s guidance about using that specific tool, and the model reads it exactly when it’s choosing between tools. It also travels with the tool if you reuse it in another agent. The system prompt is for task-level goals and policy (Day 6).
+
+## Day 3: Tool Design 2 - results, errors, idempotency, small outputs  
+
+### Concept  
+1. Return what the model needs, not what the API gives you
+   - Summarise: 250 OHLC rows → last, min, max, change_pct, last_5
+   - Use compact JSON with clear keys; drop internal IDs and noise
+   - Cap or paginate big lists (limit, next_cursor)
+   - Rule of thumb: a tool result should be a few hundred tokens, not thousands
+
+2. Errors are instructions for the next turn
+```
+bad : "Error 400"
+good: "Unknown symbol 'TSLA'. Supported: [AAPL, MSFT, NVDA]."
+```
+- Set `"is_error": True` so the model (and your logs) know it failed
+- Say what went wrong, what’s valid, and whether anything changed (“No order placed”)
+- Return errors; don’t raise. An uncaught exception gives the model an opaque failure
+
+3. Idempotency = safe to retry
+```
+model → place_order(cid="NVDA-buy-2026-11-02")  → created
+(timeout, retry, or model repeats itself)
+model → place_order(cid="NVDA-buy-2026-11-02")  → duplicate_ignored
+```
+Agents repeat calls more often than you’d expect: retries, loops, or forgetting earlier turns. Any tool with side effects should take an idempotency key. Alpaca supports this natively via client_order_id.
+
+### What to look for  
+- ERR : on TSLA. The agent should read the message and move on (or tell you TSLA isn’t supported) instead of making up a price.
+- NVDA is up about 1.8% over 20 days, so expect one created order.
+- The repeat order returns duplicate_ignored, and the final line prints Orders on 'broker': 1.
+- cost is a notional figure. On a subscription you aren’t billed per call, but it’s still a useful size signal.  
+
+### Quiz
+1. Your get_positions tool returns the raw broker JSON: 40 fields × 30 positions. What’s wrong with that, and what would you return instead?
+2. Should a tool raise an exception or return is_error: True when the user asks for an invalid date range? Why?
+3. Your agent called place_order, the HTTP request timed out, and the agent retried. Without idempotency, what can go wrong? Which tools in a trading agent need an idempotency key, and which don’t?
+
+Reply here with your output, code or questions, and I’ll review them.
+
+### Answers
+1. It floods the context (thousands of tokens per call, re-sent on every later turn), slows the model down, and buries the signal. Return only the fields it needs to decide (symbol, qty, avg_price, market_value, unrealized_pl_pct), maybe sorted, with a limit parameter. Let it call a detail tool if it needs more.
+2. Return is_error: True with an actionable message, e.g. “start must be before end; data available from 2021-01-04”. The model can read it and self-correct on the next turn. A raised exception gives an opaque failure and can’t teach the model how to fix the call. Save exceptions for real bugs in your own code.
+3. The first order may have gone through even though the response was lost, so the retry places a second real order. Anything with side effects needs a key: place/cancel/modify order, sending alerts, writing files or records. Read-only tools (quotes, positions, history) are naturally idempotent and don’t need one.
