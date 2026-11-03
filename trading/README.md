@@ -140,3 +140,38 @@ EWMA (exponentially weighted): gives more weight to recent days, a good middle g
 1. 1.2% × √252 ≈ 1.2% × 15.87 ≈ 19.0%
 2. Daily: 20% / √252 ≈ 1.26%. Weekly: 1.26% × √5 ≈ 2.8% (or 20% / √52 ≈ 2.8%)
 3. The returns are negatively autocorrelated (some mean reversion): up days tend to be partly undone. If you annualize daily vol with √252, you overstate the risk the strategy really carries over longer horizons. The general lesson: the √n rule assumes independent returns, so check that before you trust a scaled number. Positive autocorrelation would bias it the other way, which is more dangerous.
+
+## Day 4: Drawdowns  
+
+Volatility tells how much returns jump around.  
+Drawdown tells how much money actually lost from the best point and how long it took to get it back.  
+
+### Concept  
+Drawdown at time `t` is how far equity sits below its highest level
+```
+Peak_t = max(W_0 ... W_t)
+DD_t = W_t / Peak_t - 1           (always <= 0)
+```
+- max drawdown (MDD) = the most negative DD_t. its the worst loss from a peak to later trough  
+- drawdown duration = how long you stay underwater (DD < 0), counted froma  peak until equity makes a new high  
+after a loss of `d`, need a gain of:
+```
+g - 1/(1-d) - 1
+```
+
+### What to look for:
+
+- SPY and QQQ: the worst trough should land in the 2020 COVID crash or the 2022 bear market. Which one was deeper for QQQ?
+- TLT (long-term bonds): this is the eye-opener. Check its max drawdown and whether it says “not yet” recovered. People call these “safe” assets, but they can lose badly too.
+- `pct_time_uw`: even good assets spend most days below their previous high. That’s normal, and it’s useful to know before you watch a live equity curve.
+- Compare duration to depth. A shallow drawdown can still drag on for a long time.
+
+### Quiz
+1. Your strategy is down 40% from its peak. What return do you need to get back to even?
+2. Equity goes 50 → 60 → 45 → 55 → 66. What’s the max drawdown, and at which step do you recover?
+3. You run the same strategy over a 3-year backtest and a 15-year backtest. Which one will usually show the bigger max drawdown, and why?
+
+### Answers
+1. 1/0.6 − 1 = +66.7%.
+2. The peak is 60 and the trough is 45, so MDD = 45/60 − 1 = −25%. You recover at 66 (step 5), the first value at or above 60. You were underwater for 2 steps (45 and 55).
+3. The 15-year one, in general. Max drawdown is the worst event in the sample. A longer sample gives more chances for a bad streak, so the expected MDD grows with time. A short backtest’s MDD is too optimistic, so plan for something worse when you go live.
