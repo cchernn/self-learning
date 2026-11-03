@@ -113,4 +113,39 @@ Reply here with your output, code or questions, and I’ll review them.
 ### Answers
 1. It floods the context (thousands of tokens per call, re-sent on every later turn), slows the model down, and buries the signal. Return only the fields it needs to decide (symbol, qty, avg_price, market_value, unrealized_pl_pct), maybe sorted, with a limit parameter. Let it call a detail tool if it needs more.
 2. Return is_error: True with an actionable message, e.g. “start must be before end; data available from 2021-01-04”. The model can read it and self-correct on the next turn. A raised exception gives an opaque failure and can’t teach the model how to fix the call. Save exceptions for real bugs in your own code.
-3. The first order may have gone through even though the response was lost, so the retry places a second real order. Anything with side effects needs a key: place/cancel/modify order, sending alerts, writing files or records. Read-only tools (quotes, positions, history) are naturally idempotent and don’t need one.
+3. The first order may have gone through even though the response was lost, so the retry places a second real order. Anything with side effects needs a key: place/cancel/modify order, sending alerts, writing files or records. Read-only tools (quotes, positions, history) are naturally idempotent and don’t need one.  
+
+## Day 4: Inside the Agent Loop  
+```
+prompt ─► MODEL ──stop_reason="tool_use"──► run tool(s) ─► results
+            ▲                                                │
+            └───────────────── next turn ◄───────────────────┘
+          stop_reason="end_turn" ─► ResultMessage (done)
+```
+
+- **Turn**: one model response, plus running whatever tools it asked for. One `AssistantMessage` in the stream is roughly one turn.  
+- **max_turns**: a hard cap on turns. When the agent hits it, the run ends with `ResultMessage.subtype == "error_max_turns"` and no final answer. Always set it. It's your cheapest guard against runaway loops.  
+- **Parallel tool calls**: in a single turn, the model can return several `ToolUseBlock`s. If a tool is marked `readOnlyHint=True` (it has no side effects), the runtime may run those calls at the same time. That means 3 quotes take about 1s instead of 3s. Never mark a tool that places orders as read-only.  
+- **Stop reasons**: `tool_use` (the model wants tools, so the loop continues), `end_turn` (the model is done), `max_tokens` (the output was cut off).
+- Two kinds of retry:
+   1. Transport retries. The runtime retries API errors like 429 and 5xx automatically.
+   2. Model retries. Your tool returns `is_error: True` with a helpful message, and the model decides whether to try again (Day 3). You stay in control by keeping the error text honest (“safe to retry” vs “don’t retry”).
+- **Hooks**: `PreToolUse` and `PostToolUse` run in your Python around every tool call. They’re your window into the loop, and later (Day 13) your guardrails.
+
+### What to look for:
+
+1. **Turn 1**: the model asks for about 4 calls at once (3 prices + FX). The PRE timestamps should be close together, and the POSTs should land about 1s later, not 4s later. Overlapping timestamps mean the calls ran in parallel. Depending on how the SDK sends them, you may see each call in its own `AssistantMessage` with the same timing, so read the timestamps, not just the turn count.
+2. **The retry**: one result shows ERROR for MSFT, and in the next turn the model asks for MSFT again.
+3. **The end**: `subtype=success` and a small turn count (about 3).
+
+### Quiz
+
+1. Your agent ends with `subtype="error_max_turns"`. Name two likely causes, and say what you’d check in the message stream.
+2. You have get_quote and place_order tools. Which should get readOnlyHint=True, and what could go wrong if you mark the wrong one?
+3. A broker API returns HTTP 500. Should your tool retry internally, or return is_error and let the model decide? When would you choose each?
+
+### Answers
+
+1. Causes: the model keeps retrying a tool that never succeeds (look for repeated ERROR results with the same input), or the task needs more steps than the cap allows (look for steady progress with each turn). Also check whether the error messages give the model an unclear signal. Fix the tool’s error message, raise the cap, or split the task.
+2. Only `get_quote`. Marking `place_order` read-only invites it to run in parallel and to be treated as safe to repeat, which could mean duplicate or conflicting orders. Side-effecting tools should run one at a time and be idempotent (Day 3).
+3. Retry quick, transient errors inside the tool (1–2 tries with backoff) on read-only calls. That’s cheaper than spending a model turn. Return `is_error` when the failure persists, or when the call has side effects, so the model (or a human) decides. Never blindly retry `place_order`.
