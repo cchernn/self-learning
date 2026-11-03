@@ -22,4 +22,13 @@ Queries:
 2. Total revenue per day, sorted by date
 3. Pickup zones with more than 1,000 trips (HAVING)
 4. Average tip % per payment_type, counting only trips with fare > 0 (WHERE + GROUP BY)
-5. COUNT(*) vs COUNT(tip_amount) side by side. Explain any difference.
+5. COUNT(*) vs COUNT(tip_amount) side by side. Explain any difference.  
+
+## Day 3: SQL Deep Dive  
+
+### Tasks  
+1. The 3 longest trips in each pickup zone (ROW_NUMBER)
+2. Days ranked by total fare (RANK vs DENSE_RANK, with a comment on how they differ)
+3. A running total of daily revenue (SUM() OVER (ORDER BY day))
+4. The day-over-day change in trip count (LAG)
+5. A 7-day moving average of trips (ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)
