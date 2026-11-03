@@ -32,3 +32,11 @@ Queries:
 3. A running total of daily revenue (SUM() OVER (ORDER BY day))
 4. The day-over-day change in trip count (LAG)
 5. A 7-day moving average of trips (ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)
+
+## Day 4: SQL Deep Dive  
+
+### Tasks  
+1. Rank pickup zones by trip count within each borough (RANK + PARTITION BY).
+2. Find the top 3 longest trips per day (ROW_NUMBER in a CTE, then filter rn <= 3).
+3. Show daily revenue with a 7-day moving average.
+4. Show each day’s trip count next to the previous day’s, plus the % change (LAG).
