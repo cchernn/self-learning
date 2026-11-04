@@ -11,7 +11,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-SQL_SETUP_FILE = "day1_setup.sql"
+SQL_SETUP_FILE = "setup.sql"
+DAY = 5 # Change every dayX to the corresponding day number
 CSV_TAXI_ZONE_LOOKUP_FILE = "./raw/taxi_zone_lookup.csv"
 CSV_GREEN_TRIP_FILE = "./raw/green_tripdata_2019-01.csv"
 
@@ -90,7 +91,7 @@ def execute_queries(sql_file):
                 yield results
 
 if __name__ == "__main__":
-    logger.info("Starting day2 script")
+    logger.info(f"Starting day{DAY} script")
 
     # Setup
     # init_db(SQL_SETUP_FILE)
@@ -98,7 +99,7 @@ if __name__ == "__main__":
     # copy_data_to_db(CSV_GREEN_TRIP_FILE, "taxi.trips")
 
     # Run queries
-    for query_results in execute_queries("day2_query.sql"):
+    for query_results in execute_queries(f"day{DAY}_query.sql"):
         df_result = pd.DataFrame(query_results)
         logger.info(f"Query results sample: {df_result.head()}")
-    logger.info("End day2 script")
+    logger.info(f"End day{DAY} script")
