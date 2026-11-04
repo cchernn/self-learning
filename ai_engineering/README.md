@@ -149,3 +149,51 @@ prompt ─► MODEL ──stop_reason="tool_use"──► run tool(s) ─► res
 1. Causes: the model keeps retrying a tool that never succeeds (look for repeated ERROR results with the same input), or the task needs more steps than the cap allows (look for steady progress with each turn). Also check whether the error messages give the model an unclear signal. Fix the tool’s error message, raise the cap, or split the task.
 2. Only `get_quote`. Marking `place_order` read-only invites it to run in parallel and to be treated as safe to repeat, which could mean duplicate or conflicting orders. Side-effecting tools should run one at a time and be idempotent (Day 3).
 3. Retry quick, transient errors inside the tool (1–2 tries with backoff) on read-only calls. That’s cheaper than spending a model turn. Return `is_error` when the failure persists, or when the call has side effects, so the model (or a human) decides. Never blindly retry `place_order`.
+
+## Day 5: Context Engineering  
+
+Context window is the agent's whole world. Everything the model knows on a turn has to fit inside it. Bloated context costs in 3 ways  
+1. Pay for it
+2. Slows every call  
+3. Model reasons worse when signal is buried in noise  
+
+```
+┌─────────────────────────────────┐
+│ system prompt                   │  stable   ← cached
+│ tool definitions (names+schemas)│  stable   ← cached
+├─────────────────────────────────┤
+│ user msg 1                      │
+│ assistant: tool_use             │  grows every turn
+│ tool_result  (← the usual hog)  │
+│ assistant: text                 │
+│ user msg 2 ...                  │
+└─────────────────────────────────┘
+```
+
+### Four levers of control  
+1. Shrink at the source.
+   - make tools return summaries  
+2. Truncate and paginate
+   - cap output size and return something like "truncated: 180 more rows, call again with offset=20"
+3. Compaction
+   - when long session nears limit, older turns get summarized into short recap
+   - loses detail, so anything that must survive belongs in file or DB
+4. Prompt caching
+   - if start of window is identical to last turn, read from cache at fraction of cost and latency
+
+### What to look for
+
+- Compact mode: the hook reports about 150 chars per tool call. Turns 2–3 should show a large cache_read and a small uncached in, because the prefix was reused.
+- Verbose mode: about 15,000 chars per call, and the totals jump on every later turn because both price dumps get re-sent each time. Turn 3 needs no tool call, but it still pays for every bar from turns 1–2.
+- Answer quality: in verbose mode the model has to do drawdown maths in its head from raw numbers. Compare its answer with the exact max_dd_pct it gets in compact mode.
+- Compaction: you probably won’t see COMPACTION with only 3 turns. That’s expected, because it only fires near the window limit.
+
+### Quiz
+1. Your agent calls a get_positions tool on every turn of a 30-turn session, and each call returns 8k tokens. Name two fixes, one at the tool level and one at the agent/design level.
+2. You add f"Current time: {datetime.now()}" to the start of your system prompt. Why might latency and usage get noticeably worse?
+3. After auto-compaction, your trading agent “forgets” the order ID it placed 20 turns ago. What’s the right fix, and why isn’t “turn off compaction” the answer?
+
+### Answers
+1. Tool level: return only what changed, or a summary (symbol, qty, P&L), with an optional filter or detail argument. Design level: don’t re-fetch on every turn. Fetch once, or only after an order is placed, and let the system prompt or plan say when a refresh is needed. Both fixes stop 30 × 8k of mostly duplicate tokens piling up in history.
+2. Caching matches on an exact prefix. A value that changes every turn at the very start of the window invalidates the cache for everything after it: the tool definitions and the whole history. Put dynamic facts at the end (in the user message), or expose them through a get_time tool.
+3. Write critical state to durable storage the moment it’s created, such as a file, DB or “notes” tool, and read it back when needed (more on this Day 12). Turning compaction off just means the session hits the hard context limit and fails, and long contexts degrade the model’s reasoning anyway. Treat the context as working memory and storage as the source of truth.
