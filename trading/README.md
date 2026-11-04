@@ -175,3 +175,51 @@ g - 1/(1-d) - 1
 1. 1/0.6 − 1 = +66.7%.
 2. The peak is 60 and the trough is 45, so MDD = 45/60 − 1 = −25%. You recover at 66 (step 5), the first value at or above 60. You were underwater for 2 steps (45 and 55).
 3. The 15-year one, in general. Max drawdown is the worst event in the sample. A longer sample gives more chances for a bad streak, so the expected MDD grows with time. A short backtest’s MDD is too optimistic, so plan for something worse when you go live.
+
+## Day 5: Value at Risk & Expected Shortfall
+
+VaR and Expected Shortfall answers "how much could I lose tomorrow, and how bad is it when things really go wrong"  
+Usually used to set position limits and kill switches  
+
+### Concept  
+Var at confidence level (1-α) is the loss only exceed with probability α.
+95% 1-day VaR = 2% means "on 19 out of 20 days, I lose less than 2%"
+
+Expected Shortfall (also called CVaR) = average loss on days when going past VaR.
+```
+VaR = -quantile(r,α)
+ES = -mean(r for the returns <= that quantile)
+```
+
+Parametric (normal) method: assume r ~ N(μ, σ²), and let z = Φ⁻¹(α) (−1.645 at 95%, −2.326 at 99%).
+```
+VaR = −(μ + z·σ)
+ES = −μ + σ·φ(z)/α (φ = normal pdf)
+```
+Worked example (parametric): μ = 0.05%, σ = 1.2% daily, 95%:
+```
+VaR = 1.645×1.2 − 0.05 = 1.92%, so about $1,924 on a $100k book
+ES = 1.2 × 0.1031/0.05 − 0.05 = 2.43%
+```
+Worked example (historical): over 100 days, the 5 worst were −4.1, −3.2, −2.8, −2.5, −2.2%.
+```
+95% VaR ≈ 2.2% (the 5th worst; quantile conventions vary slightly)
+ES = mean of the 5 = 14.8/5 = 2.96%
+```
+
+### What to look for:
+
+- ES is always larger than VaR. Note how much larger at 99%.
+- At 99%, historical VaR is usually bigger than the normal VaR, especially for SPY/QQQ. That’s fat tails (Day 6–7 preview). At 95% the two methods often roughly agree.
+- Breach rate: the expected rate is 1%. You’ll likely see more than that, and they bunch up in 2020 (and 2018/2022). That’s volatility clustering: a 1-year window reacts too slowly.
+- TLT: the “safe” asset still has non-trivial VaR. Compare it to SPY.
+
+### Quiz
+1. Strategies A and B both have 95% 1-day VaR of 2%. Can their risk still differ a lot? Which number would show it?
+2. A $50,000 position has daily σ = 1.5% and μ ≈ 0. What is its 99% 1-day parametric VaR in dollars? And its rough 10-day VaR?
+3. Your rolling 99% VaR model had 25 breaches in 1,000 days. What does that tell you?
+
+### Answers
+1. Yes. VaR only marks the threshold. A might lose 2.5% on its bad days while B (say, short options) loses 15%. Expected Shortfall shows the difference.
+2. 2.326 × 1.5% = 3.49%, so ≈ $1,745. 10-day ≈ $1,745 × √10 ≈ $5,517.
+3. You’d expect about 10. Getting 25 or more by luck has a probability of about 0.004% (binomial), so the model underestimates risk. The usual causes are fat tails and volatility clustering. Fixes include a shorter or EWMA volatility window, a fatter-tailed distribution, or adding a safety buffer.
