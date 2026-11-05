@@ -197,3 +197,44 @@ Context window is the agent's whole world. Everything the model knows on a turn 
 1. Tool level: return only what changed, or a summary (symbol, qty, P&L), with an optional filter or detail argument. Design level: don’t re-fetch on every turn. Fetch once, or only after an order is placed, and let the system prompt or plan say when a refresh is needed. Both fixes stop 30 × 8k of mostly duplicate tokens piling up in history.
 2. Caching matches on an exact prefix. A value that changes every turn at the very start of the window invalidates the cache for everything after it: the tool definitions and the whole history. Put dynamic facts at the end (in the user message), or expose them through a get_time tool.
 3. Write critical state to durable storage the moment it’s created, such as a file, DB or “notes” tool, and read it back when needed (more on this Day 12). Turning compaction off just means the session hits the hard context limit and fails, and long contexts degrade the model’s reasoning anyway. Treat the context as working memory and storage as the source of truth.
+
+## Day 6: System prompt for agents  
+
+System prompt says *how the agent should work*, its role, rules, the order of steps and what "done" looks like.  
+
+### Concept  
+```
+Tool description  → what this tool does, its inputs,
+                    when to use it (local, per tool)
+System prompt     → who you are, global rules, the plan,
+                    when to stop, output format
+User prompt       → this specific task
+```
+
+A good agent system prompt has 4 parts
+1. **Role**: who it serves and what it's for  
+2. **Rules / limits**: hard constraints eg. *read-only*  
+3. **Plan**: numbered steps plus an explicit stop condition  
+4. **Output contract**: exact shape of final answer  
+
+in Claude Code, adding to existing system prompt:
+```
+system_prompt={"type": "preset", "preset": "claude_code", "append": "Extra rules ..."}
+```
+
+### What to look for  
+
+- The correct total is $11,768.00 (20×231.4 + 50×142.8). Check that both runs get it.
+- A usually calls `get_price("MSFT")`, gives a chatty answer and maybe some investment opinion. Its format changes from run to run.
+- B should make exactly 1 + 2 tool calls, ideally with the two prices in the same turn, then print a clean table.
+- Compare `turns` and `cost` across the two runs. Run each 2–3 times to see how much the output varies.
+
+### Quiz
+1. You want the agent to always pass tickers in uppercase to get_price. Does that go in the system prompt or the tool definition, and why?
+2. Your agent keeps calling get_price again “to confirm” after it already has the data. Which part of the system prompt is missing?
+3. You’re building a narrow trading bot with custom tools only. Should you pass a plain string or the claude_code preset with append? What changes?
+
+### Answers
+1. The tool definition. It’s a per-tool input rule, so put it in the parameter description (or a pattern/enum), or better, just .upper() it in the handler as we did. The system prompt is for rules that span tools.
+2. The stop condition. Add an explicit “after step N, stop, no further tool calls” plus a clear output contract so the model knows what “done” looks like.
+3. A plain string. It replaces Claude Code’s large default prompt (coding instructions, file-tool guidance), which uses fewer tokens and avoids behaviour you don’t want. Use the preset with append only when you want Claude Code’s coding-agent behaviour plus your additions.
