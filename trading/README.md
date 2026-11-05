@@ -223,3 +223,36 @@ ES = mean of the 5 = 14.8/5 = 2.96%
 1. Yes. VaR only marks the threshold. A might lose 2.5% on its bad days while B (say, short options) loses 15%. Expected Shortfall shows the difference.
 2. 2.326 × 1.5% = 3.49%, so ≈ $1,745. 10-day ≈ $1,745 × √10 ≈ $5,517.
 3. You’d expect about 10. Getting 25 or more by luck has a probability of about 0.004% (binomial), so the model underestimates risk. The usual causes are fat tails and volatility clustering. Fixes include a shorter or EWMA volatility window, a fatter-tailed distribution, or adding a safety buffer.
+
+## Day 6: Distributions - normal assumption, skewness, kurtosis  
+
+### Concept  
+Standardized returns `z = (r − μ)/σ`  
+
+Skewness = average of z³
+- 0 → symmetric
+- negative → long left tail (rare big losses, many small gains). Typical for stock indices.
+- positive → long right tail (rare big wins). Typical for lottery-like assets and trend-following.
+
+Kurtosis = average of z⁴. A normal has kurtosis 3, so we usually report excess kurtosis = kurtosis − 3.
+- 0 → normal-like tails
+- > 0 → fat tails and a tall, skinny middle: lots of quiet days with the occasional huge move. Daily equity returns often have excess kurtosis of 5–15.
+
+### What to look for
+
+- Daily SPY/QQQ: negative skew, excess kurtosis far above the normal 95% range (which will be roughly ±0.2). The March 2020 crash dominates.
+- `worst_z` for SPY: probably around −8 to −10 sigma. Look at `P_normal(worst)`, which is a number so tiny that, under a normal model, it should never happen in the life of the universe. Yet it happened in your 10-year sample.
+- Monthly: kurtosis should be much lower than daily (aggregation at work), though usually still not zero.
+- Compare TLT (bonds) and AAPL to the indices. Is the skew sign the same?
+
+### Quiz
+
+1. A strategy has a high Sharpe ratio, skew of −2.5 and excess kurtosis of 12. In plain words, what does its return pattern probably look like, and what’s the risk?
+2. SPY’s daily σ is about 1.1%. Under a normal model, roughly how often should a −4.4% day (a 4-sigma down move) happen? (Use P(Z < −4) ≈ 3.2×10⁻⁵ and 252 trading days/year.)
+3. True or false: if daily returns have excess kurtosis of 10, monthly returns of the same asset will also have excess kurtosis near 10.
+
+### Answers  
+
+1. Steady small gains most of the time, then rare, very large losses: the “selling insurance / pennies in front of a steamroller” profile. Sharpe only uses mean and std, so it misses this tail risk. You’d want drawdown, Expected Shortfall and a long history including crashes before trusting it.
+2. 1 / 3.2×10⁻⁵ ≈ 31,000 trading days ≈ once every ~125 years. In reality SPY has had many such days in the last two decades. That gap is tomorrow’s topic (fat tails).
+3. False. Summing about 21 daily returns pulls the distribution toward normal (CLT), so monthly kurtosis is usually much lower. It often stays above 0, though, because volatility clusters, which means daily returns aren’t fully independent.
