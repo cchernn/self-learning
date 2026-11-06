@@ -238,3 +238,56 @@ system_prompt={"type": "preset", "preset": "claude_code", "append": "Extra rules
 1. The tool definition. It’s a per-tool input rule, so put it in the parameter description (or a pattern/enum), or better, just .upper() it in the handler as we did. The system prompt is for rules that span tools.
 2. The stop condition. Add an explicit “after step N, stop, no further tool calls” plus a clear output contract so the model knows what “done” looks like.
 3. A plain string. It replaces Claude Code’s large default prompt (coding instructions, file-tool guidance), which uses fewer tokens and avoids behaviour you don’t want. Use the preset with append only when you want Claude Code’s coding-agent behaviour plus your additions.
+
+## Day 7: Mini-project - Research Agent (Web search + notes tool)  
+
+### Concept  
+Agent writes what it learns to external notepad instead of keeping in context window
+```
+question
+  │
+  ▼
+WebSearch (≤3) ──► WebFetch (≤3 pages)
+                       │  big page text (lives in context briefly)
+                       ▼
+                 save_note(key, fact, source)  ← small, cited, on disk
+                       │
+                       ▼
+                 list_notes ──► final answer citing [key]
+```
+Design choices:
+- Built-ins limited with `tools=[...]`. Agent only has WebSearch and WebFetch, no Bash and file edits.
+- Idempotent notes. Saving to same `key` overwrites old note, avoiding duplicates.  
+- Errors model can act on. Source that isn't a URL comes back as `is_error` with clear reason.  
+- Small outputs  
+- budget in prompt plus `max_turns`.
+- Answer only from notes.  
+
+### What to look for  
+
+- Each step prints as 🔧 (tool call) and then ✅ or ❌ (result). You should see searches, then fetches, then several save_note calls, then one list_notes, and finally the 💬 answer with [key] citations.
+- Check the size of each result. WebFetch results are large and save_note results are tiny. That gap is the context-engineering point of this lesson.
+- Open research_notes.json afterwards. It’s your audit trail.
+- The final line shows turns= and the cost. On your subscription the cost is a notional figure, not a bill.
+
+### Quiz (today)
+1. Why have the agent answer from list_notes instead of from the pages it just read?
+2. The agent saves key="mcp_launch", then later finds a better source and saves the same key again. Is that a bug?
+3. You set max_turns=15, but the prompt says “at most 3 searches, 3 fetches”. Why have both?
+
+### Week 1 review quiz
+4. Give one sign that a task should be a fixed workflow rather than an agent.
+5. Two tools are called get_data and fetch_info. What’s wrong, and how would you fix it?
+6. When should a tool return is_error: True instead of raising an exception?
+7. Can the model run several tool calls in one turn? What should you mark a tool as so they can safely run in parallel?
+8. Which belongs in the system prompt and which in a tool description: (a) “the source must be a URL”; (b) “do the research in 4 steps”?
+
+### Answers
+1. The pages are large and get crowded out or compacted as the context fills. The notes are small, cited and checkable, and every claim in the answer traces back to a URL.
+2. No, it’s by design. The tool is idempotent, so the same key means a correction and you get no duplicates.
+3. The prompt budget is a soft limit the model usually follows. max_turns is the hard stop if the model ignores the prompt or gets stuck in a loop.
+4. The steps are known in advance and always the same (for example: fetch prices, then compute signals, then email). Use an agent only when the next step depends on what it found.
+5. The names are vague and overlap, so the model can’t tell which to use. Use specific, verb-first names with clear descriptions, such as get_ohlc_bars(symbol, timeframe) and get_company_profile(symbol).
+6. For expected, recoverable problems the model can fix (bad arguments, not found, rate limited). Write a message that says what to do differently. Raise an exception only for real bugs.
+7. Yes. Mark read-only, side-effect-free tools with readOnlyHint=True (tool annotations) so the SDK can run them at the same time.
+8. (a) goes in the tool description, because it’s a rule about that tool’s input. (b) goes in the system prompt, because it’s the agent’s overall plan.
