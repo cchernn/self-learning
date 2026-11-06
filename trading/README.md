@@ -256,3 +256,44 @@ Kurtosis = average of z⁴. A normal has kurtosis 3, so we usually report excess
 1. Steady small gains most of the time, then rare, very large losses: the “selling insurance / pennies in front of a steamroller” profile. Sharpe only uses mean and std, so it misses this tail risk. You’d want drawdown, Expected Shortfall and a long history including crashes before trusting it.
 2. 1 / 3.2×10⁻⁵ ≈ 31,000 trading days ≈ once every ~125 years. In reality SPY has had many such days in the last two decades. That gap is tomorrow’s topic (fat tails).
 3. False. Summing about 21 daily returns pulls the distribution toward normal (CLT), so monthly kurtosis is usually much lower. It often stays above 0, though, because volatility clusters, which means daily returns aren’t fully independent.
+
+## Day 7: Fat Tails - QQ plots, 3-sigma days, Jarque-Bera  
+
+### Concept  
+1. Count extremes. Standardize returns: z = (r - mean) / std. Under a normal, P(|z| > 3) = 0.27%  
+2. QQ plot. This plots sample's quantiles against the normal quantiles. If data were normal, points would sit on a straight line. With fat tails you get an S-shape  
+3. Jarque-Bera test. Combining skew (S) and kurtosis (K, where normal=3) 
+```
+JB = n/6 · [ S² + (K − 3)² / 4 ]
+```
+Under normality, JB follows a χ² distribution with 2 degrees of freedom. The 5% critical value is 5.99.
+
+### What to look for:
+
+- >3sd actual vs expected: the actual count should be several times the expected ~7.
+- >4sd: the normal says roughly 0; you’ll likely see a handful (March 2020 alone supplies several).
+- Excess kurtosis well above 0, and JB p-values effectively 0.
+- Worst day z: probably around −8 to −11 for SPY. Under a normal, that should essentially never happen in the lifetime of the universe.
+- QQ plot: an S-shape against the normal. The Student-t panel should hug the line much better. A fitted df of roughly 2–4 means very fat tails.
+
+### Day 7 Quiz
+1. Over 2,520 trading days, how many days beyond ±4σ does a normal distribution predict? Roughly how many years is that per event?
+2. On a QQ plot (theoretical quantiles on x, sample quantiles on y), where do the points sit in each tail for fat-tailed data?
+3. A strategy’s 250 daily returns give JB = 8. Do you reject normality at 5%? And if a different sample had JB = 3, would that prove the returns are normal?
+
+### Week 1 Review Quiz
+4. A stock goes +10% then −10%. What’s the total simple return? What’s the sum of the log returns?
+5. Monthly arithmetic mean is 1%, monthly vol is 5%. What’s the approximate geometric mean per month?
+6. Daily vol is 1.2%. What’s the annualized vol?
+7. You’re down 40%. What gain do you need to get back to even?
+8. 1-day 99% parametric VaR on $100k, with μ = 0 and σ = 1.5%?
+
+### Answers
+1. P = 6.33×10⁻⁵, so 2,520 × P ≈ 0.16 days, i.e. one every ~63 years. Real markets deliver several per decade.
+2. Left tail below the line, right tail above it. The sample’s extremes go further out than the normal’s: an S-shape.
+3. p = e^(−8/2) ≈ 0.018 < 0.05 → reject. No: failing to reject never proves normality. It may just mean there wasn’t enough data, since 250 days rarely contain enough tail events.
+4. 1.1 × 0.9 − 1 = −1%. Log returns: ln 1.1 + ln 0.9 = 0.0953 − 0.1054 = −0.0101. ln(0.99) gives the same number, which is why log returns add over time.
+5. ≈ 1% − σ²/2 = 1% − 0.125% = 0.875% (volatility drag).
+6. 1.2% × √252 ≈ 19.0%
+7. 1/0.6 − 1 = +66.7%
+8. 2.326 × 1.5% = 3.49% → ≈ $3,490. And given today’s lesson, that normal-based number understates tail risk.
