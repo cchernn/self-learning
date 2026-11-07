@@ -40,3 +40,16 @@ Queries:
 2. Find the top 3 longest trips per day (ROW_NUMBER in a CTE, then filter rn <= 3).
 3. Show daily revenue with a 7-day moving average.
 4. Show each day’s trip count next to the previous day’s, plus the % change (LAG).
+
+## Day 5: SQL Deep Dive
+
+### Tasks  
+1. Write a query joining trips to the zone lookup twice (pickup + dropoff) and summing fares by borough. Compare COUNT(*) before vs after the joins — prove there’s no fan-out.
+2. Write one NOT IN query, add a NULL to the subquery, watch it break, then fix it with NOT EXISTS.
+3. Pick your slowest query from this week, run EXPLAIN ANALYZE, add an index, rerun, and note the before/after time as a comment in your .sql file.
+
+## Day 8: Python for data  
+
+### Tasks  
+1. Build dataframe of 100k rows (an int id, a float, a date, a text category), save it as `.csv`, `.json`, `.parquet`  
+2. Print each file's size and the `dtypes`  
