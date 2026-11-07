@@ -291,3 +291,49 @@ Design choices:
 6. For expected, recoverable problems the model can fix (bad arguments, not found, rate limited). Write a message that says what to do differently. Raise an exception only for real bugs.
 7. Yes. Mark read-only, side-effect-free tools with readOnlyHint=True (tool annotations) so the SDK can run them at the same time.
 8. (a) goes in the tool description, because it’s a rule about that tool’s input. (b) goes in the system prompt, because it’s the agent’s overall plan.
+
+## Day 8: Model Context Protocol (MCP)  
+
+### Concept  
+#### Three roles
+```
+ HOST (the app: your SDK script, Claude Code)
+  ├─ CLIENT ──stdio──► SERVER A (fetch, a local process)
+  ├─ CLIENT ──http───► SERVER B (remote, e.g. a SaaS)
+  └─ CLIENT ──in-proc► SERVER C (your @tool funcs)
+```
+- **Host**: app that runs the model and decides what reaches the context window  
+- **Client**: one connection per server: created by host. Speaks JSON-RPC  
+- **Server**: program that exposes capabilities. It never sees the model, only requests coming in  
+
+#### Transports  
+- **stdio**: server starts as subprocess. This is usual choice for local tools  
+- **Streamable HTTP**: for remote servers, usually need OAuth  
+- **SDK**: no subprocess. Fastest option  
+
+#### Lifecycle  
+`initialize` (handshake + capabilities) -> `tools/list` (discovery) -> `tools/call` (repeated) -> shutdown  
+
+Three primitives:  
+
+Primitive | Controlled by | Example
+--- | --- | ---
+Tools	| the model decides to call them	| get_quote(symbol)
+Resources | the app/user attaches them as context | file://watchlist.csv
+Prompts | the user picks a template | “/daily-brief”
+
+### What to look for  
+
+- Two [server] lines, both connected. Fetch lists ['fetch'] and notes lists ['save_note']. That’s discovery working.
+- [call] mcp__fetch__fetch, followed by two mcp__notes__save_note calls. The model treats both servers the same way; it can’t tell which one is in-process.
+- If fetch shows failed, read the error. It’s almost always a missing uvx on PATH, which is the most common MCP setup problem.  
+
+### Quiz
+1. Your SDK script connects to 3 MCP servers. How many hosts, clients and servers are there?
+2. You want to expose (a) “place a paper-trade order”, (b) your static list of tickers to watch, and (c) a “weekly portfolio review” template you start manually. Which MCP primitive fits each one?
+3. A teammate wants your market-data tools usable from both Claude Code on their laptop and a shared server agent. Should you build them with create_sdk_mcp_server or as a standalone MCP server? Why?
+
+### Answers
+1. 1 host (your script / the Claude Code process it drives), 3 clients (one per connection), 3 servers.
+2. (a) Tool, because it has side effects and the model decides when to call it. (b) Resource, because it’s read-only data the app attaches. (c) Prompt, because it’s a template a user triggers.
+3. A standalone server (stdio for local use, HTTP for shared use). create_sdk_mcp_server only runs inside your own Python process, so other hosts can’t connect to it. In-process is great for tools that belong to a single script; standalone is for tools you want to reuse across apps.  
