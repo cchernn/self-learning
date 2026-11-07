@@ -297,3 +297,43 @@ Under normality, JB follows a χ² distribution with 2 degrees of freedom. The 5
 6. 1.2% × √252 ≈ 19.0%
 7. 1/0.6 − 1 = +66.7%
 8. 2.326 × 1.5% = 3.49% → ≈ $3,490. And given today’s lesson, that normal-based number understates tail risk.
+
+## Day 8: Covariance & Correlation  
+
+Diversification only works when positions don't all move together.
+Correlation tells how much they move together, covariance is what goes into portfolio risk.  
+
+### Concept  
+
+For returns *a* and *b* over *n* periods:  
+- Covariance: Cov(a,b) = Σ(aᵢ−ā)(bᵢ−b̄) / (n−1)  
+- Correlation: ρ = Cov(a,b) / (σₐ·σ_b), which always falls between −1 and +1  
+
+Why correlation drives portfolio risk (two assets):
+```
+σₚ² = w₁²σ₁² + w₂²σ₂² + 2·w₁w₂·ρ·σ₁σ₂
+```
+
+Take a 50/50 mix of two assets, each with 20% volatility:
+- ρ = 1 → portfolio vol 20.0% (no benefit at all)  
+- ρ = 0.5 → 17.3%  
+- ρ = 0 → 14.1%  
+- ρ = −0.5 → 10.0%  
+
+### Three warnings:
+
+1. Correlation only measures linear co-movement.
+2. It is an estimate from a sample, so it has noise. A 63-day correlation is very noisy.
+3. In a sell-off, everyone de-risks at the same time, so correlations between risky assets rise. Even the stock/bond hedge can fail: in 2022 stocks and bonds fell together.  
+
+### Quiz  
+
+1. Cov(A,B) = 0.0002, σₐ = 2%, σ_b = 1.5% (daily). What is ρ?  
+2. A 50/50 portfolio of two assets, each with 30% annual vol and ρ = 0.2. What is the portfolio vol?  
+3. True or false: "ρ = 0 means the two assets are independent." Explain.  
+
+### Answers  
+1. ρ = 0.0002 / (0.02 × 0.015) = 0.0002 / 0.0003 = 0.667  
+2. σₚ² = 0.25(0.09) + 0.25(0.09) + 2(0.25)(0.2)(0.09) = 0.045 + 0.009 = 0.054, so σₚ = 23.2%  
+3. False. Zero correlation only rules out a linear relationship. Example: x is symmetric around 0 and y = x². Then ρ ≈ 0, yet y is completely determined by x. In markets, two assets can look uncorrelated on average and still crash together, a tail dependence that a single ρ hides.  
+
