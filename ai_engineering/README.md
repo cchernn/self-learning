@@ -337,3 +337,36 @@ Prompts | the user picks a template | “/daily-brief”
 1. 1 host (your script / the Claude Code process it drives), 3 clients (one per connection), 3 servers.
 2. (a) Tool, because it has side effects and the model decides when to call it. (b) Resource, because it’s read-only data the app attaches. (c) Prompt, because it’s a template a user triggers.
 3. A standalone server (stdio for local use, HTTP for shared use). create_sdk_mcp_server only runs inside your own Python process, so other hosts can’t connect to it. In-process is great for tools that belong to a single script; standalone is for tools you want to reuse across apps.  
+
+## Day 9: Build standalone MCP Server  
+
+### Concept  
+```
+ Host (Agent SDK / Claude Code)
+   └─ MCP client ──stdio (JSON-RPC)──▶ risk_server.py
+                                        ├─ tool:     position_size
+                                        ├─ resource: risk://rules
+                                        └─ prompt:   trade_review
+```
+- **stdio transport**: host starts script as subprocess and sends JSON over stdin and stdout. Never `print()` to stdout inside a stdio server because it corrupts the protocol, log to stderr instead
+- **in-process vs standalone**
+- official `mcp` package is now **v2** and `FastMCP` was renamed `MCPServer`  
+- type hints plus `pydantic.Field` generation the JSON Schema
+
+### What to look for
+
+- The init line should show risk with status connected. If it shows failed, run python risk_server.py directly and look for errors on stderr.
+- AAPL comes back as 40 shares (risk $200 ÷ $5 per share).
+- TSLA comes back with error=True, because the stop is above entry for a long. Watch how Claude reacts: does it explain the problem, or retry as a short? That’s your error message doing its job.
+
+### Quiz
+
+1. Your stdio server works on its own, but the agent reports it as failed or it hangs on the first call. You added print("server starting") at the top. What’s wrong?
+2. When would you keep a tool in-process (create_sdk_mcp_server) instead of making it a standalone MCP server?
+3. The house risk rules: should they be a tool, a resource, or text in the system prompt? Argue it briefly.
+
+### Answers
+
+1. print writes to stdout, which is the JSON-RPC channel, so the host gets non-protocol bytes. Log to stderr instead (print(..., file=sys.stderr) or logging).
+2. In-process makes sense when only this one script uses the tool and you want zero subprocess overhead or simpler deployment. It’s also the easy way to give the tool direct access to your script’s live objects, like a pandas DataFrame already in memory or a broker client. Go standalone when several hosts need the tool, or when you want to test and version it on its own.
+3. There’s no single right answer. A resource suits read-only context the host or user chooses to attach, and it keeps the rules in one place. If the agent must always follow the rules, put the short version in the system prompt, or better, enforce them in code: a tool that refuses oversized trades. A model reading a rule is advice; code checking it is a guarantee. Use a tool only when the model needs to fetch or check rules on demand.
