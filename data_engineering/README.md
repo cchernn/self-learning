@@ -53,3 +53,12 @@ Queries:
 ### Tasks  
 1. Build dataframe of 100k rows (an int id, a float, a date, a text category), save it as `.csv`, `.json`, `.parquet`  
 2. Print each file's size and the `dtypes`  
+
+## Day 9: Python for data  
+
+### Tasks  
+1. Load one month of NYC TLC taxi trips (or any data.gov.my CSV) into a DataFrame
+2. Print df.info() and fix at least 2 wrong dtypes (for example, datetimes stored as strings)
+3. Drop duplicates and any rows with a negative fare or distance, then print how many rows you removed
+4. Run a groupby that matches one of your Week 1 SQL answers (for example, average fare by hour of day) and check that the numbers agree
+5. Save the cleaned data with df.to_parquet("clean.parquet")
