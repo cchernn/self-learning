@@ -370,3 +370,49 @@ Prompts | the user picks a template | “/daily-brief”
 1. print writes to stdout, which is the JSON-RPC channel, so the host gets non-protocol bytes. Log to stderr instead (print(..., file=sys.stderr) or logging).
 2. In-process makes sense when only this one script uses the tool and you want zero subprocess overhead or simpler deployment. It’s also the easy way to give the tool direct access to your script’s live objects, like a pandas DataFrame already in memory or a broker client. Go standalone when several hosts need the tool, or when you want to test and version it on its own.
 3. There’s no single right answer. A resource suits read-only context the host or user chooses to attach, and it keeps the rules in one place. If the agent must always follow the rules, put the short version in the system prompt, or better, enforce them in code: a tool that refuses oversized trades. A model reading a rule is advice; code checking it is a guarantee. Use a tool only when the model needs to fetch or check rules on demand.
+
+## Day 10: Code Execution as a tool  
+
+Never ask whether to let it run code. Decide where the code runs, what it can touch, and who approves it.  
+
+### Concept  
+Two ways to give agent code execution  
+1. **Your own tool**. Control the whole process  
+2. **The SDK's built in `Bash` tool**. 
+
+#### Layers of defence  
+```
+model writes code
+   │
+   ▼
+[1] Tool surface   tools=[...]  (does Bash even exist?)
+[2] Permission     hooks → deny rules → permission_mode
+                   → allow rules → can_use_tool (you/human)
+[3] Process limits timeout, CPU, memory, file size, no fork bombs
+[4] Isolation      throwaway cwd, empty env, OS sandbox
+                   (no network, writes only in cwd), or a container
+[5] Output         truncate + is_error so the model can fix itself
+```
+
+#### Permission modes  
+- default: anything that isn’t pre-approved goes to your can_use_tool callback
+- acceptEdits: file edits are auto-approved, other tools still get checked
+- plan: the agent plans only and executes nothing
+- dontAsk: never prompts; anything not in allowed_tools is denied (good for unattended scripts)
+- auto: a model classifier approves or denies each call
+- bypassPermissions: everything runs. Only use it inside a disposable container.  
+
+### Exercise A - a hardened `run_python` tool  
+What to look for: the agent writes a drawdown script, runs it, and answers. The correct answer is max drawdown ≈ −15.5%, bottoming at index 7 (110 → 93). If it tries import pandas, it gets an is_error result and should rewrite the script in pure Python. That’s the Day 3 self-correction loop in action.
+
+### Exercise B - built in Bash, gates by you and OS sandbox  
+
+### Quiz
+1. You put "Bash" in allowed_tools and also wrote a can_use_tool callback that blocks rm. The agent runs rm notes.txt anyway. Why?
+2. Your nightly agent runs unattended from a scheduler. Which permission mode fits best, and why not default?
+3. Your run_python tool has a 5s timeout and a 512 MB memory cap. Name two things malicious or buggy code could still do, and the layer that stops each.
+
+### Answers
+1. Anything in allowed_tools is pre-approved, and allow rules are checked before can_use_tool, so your callback never ran. Fix it by removing Bash from allowed_tools, or use a deny rule or PreToolUse hook, since those are checked first.
+2. Use dontAsk with a tight allowed_tools list. In default, anything not pre-approved goes to a permission prompt, and with nobody watching the run would just hang or fail. dontAsk denies anything not pre-approved, so the run is safe and predictable. Avoid bypassPermissions unless you’re in a throwaway container.
+3. Examples: read files outside the temp dir (e.g. ~/.ssh, your .env) or make network calls to exfiltrate data. Rlimits and an empty env don’t stop either one. You need OS/container isolation: the SDK sandbox with an empty allowedDomains and restricted filesystem, or Docker with --network none and a read-only mount.
