@@ -367,3 +367,48 @@ r_stock = α + β · r_SPY + ε
 1. 1.2 × 2% = +2.4%
 2. β = 0.6 × 30/15 = 1.2. R² = 0.6² = 0.36, so 64% of its variance is idiosyncratic.
 3. α ≈ 15% − 1.5 × 10% = 0%. The returns are just leveraged market exposure, not skill.
+
+## Day 10: Regression Pitfalls  
+
+Classic way algo traders fool themselves is to regress *one price* series on another, see R² = 0.9, and trade a relationship that doesn’t exist  
+
+### Concept  
+1. Check residuals first  
+`OLS: y = α + βx + ε`. The t-stats and p-values assume the residuals ε are:
+- independent, meaning not autocorrelated
+- constant variance (homoskedastic)
+- roughly normal (this matters less with large samples)  
+
+    Durbin–Watson (autocorrelation):
+    `DW ≈ 2(1 − ρ)`, where ρ is the lag-1 autocorrelation of the residuals.
+
+- DW ≈ 2 means no autocorrelation (good)
+- DW near 0 means strong positive autocorrelation (bad)
+- Example: ρ = 0.95 gives DW ≈ 2(0.05) = 0.10. That’s a red flag.
+
+2. Heteroskedasticity  
+Return variance isn't constant, it clusters, calm periods and crash periods. In regression, the residual variance changes over time or with x.  
+- **Effect**: β is still unbiased, but the ordinary SEs are wrong, usually too small, so the t-stats come out too big.
+- **Test**: Breusch–Pagan. A small p-value means heteroskedasticity is present.
+- **Fix**: use robust SEs (HC3, or HAC/Newey–West if there’s also autocorrelation). β stays the same and only the SEs change.  
+
+3. Spurious regression on prices  
+Prices behave like random walks. If you regress one random walk on another *completely independent* one, you very often get a "significant" result.  
+**Rule**: regress **returns on returns**, never prices on prices. The one exception is cointegration. Telltale sign of a spurious regression is high R² with DW near 0.  
+
+### What to look for:
+
+- A: DW should be close to 2. BP p will probably be tiny (heteroskedastic), and JB p tiny too (fat tails, Day 7). β is the same in both runs, but compare the t-stats: the robust t should be smaller.
+- B: you’ll likely see a large |t|, a sizeable R², and DW near 0. That’s the spurious pattern.
+- C: R² should collapse toward ~0, and the “relationship” mostly disappears.
+- D: about 90%+ of the random walks come out “significant.”
+
+### Quiz
+1. You regress stock X’s price on stock Y’s price over 5 years and get R² = 0.85, t = 40, DW = 0.06. What’s going on, and what should you do?
+2. A returns regression gives DW = 1.2. What’s the approximate lag-1 residual autocorrelation?
+3. True or false: heteroskedasticity biases the β estimate, so you should use robust SEs to get the correct β.
+
+### Answers
+1. It’s almost certainly spurious. DW = 0.06 means the residuals have ρ ≈ 0.97 and are basically a random walk themselves. Rerun the regression on returns, or if you think the two really are linked, test for cointegration (Day 18).
+2. ρ ≈ 1 − DW/2 = 1 − 0.6 = 0.4.
+3. False. β stays unbiased. What heteroskedasticity breaks is the SEs, and therefore the t-stats and p-values. Robust SEs leave β unchanged and correct the SEs.
