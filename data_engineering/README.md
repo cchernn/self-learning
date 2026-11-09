@@ -61,4 +61,13 @@ Queries:
 2. Print df.info() and fix at least 2 wrong dtypes (for example, datetimes stored as strings)
 3. Drop duplicates and any rows with a negative fare or distance, then print how many rows you removed
 4. Run a groupby that matches one of your Week 1 SQL answers (for example, average fare by hour of day) and check that the numbers agree
-5. Save the cleaned data with df.to_parquet("clean.parquet")
+5. Save the cleaned data with df.to_parquet("clean.parquet")  
+
+## Day 10: Python for data  
+
+### Tasks  
+Write `fetch_weather.py` that calls the free Open-Meteo forecast API for Kuala Lumpur (lat 3.14, lon 101.69) and asks for `hourly=temperature_2m,precipitation`.  
+1. Use requests.get(url, params=..., timeout=10) and raise_for_status().
+2. Turn the hourly block into a DataFrame with columns time, temperature_2m, precipitation, and parse time as a datetime.
+3. Print the row count, the date range and the hottest hour.
+4. Save it to data/kl_weather.csv.
