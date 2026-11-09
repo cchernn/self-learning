@@ -337,3 +337,33 @@ Take a 50/50 mix of two assets, each with 20% volatility:
 2. σₚ² = 0.25(0.09) + 0.25(0.09) + 2(0.25)(0.2)(0.09) = 0.045 + 0.009 = 0.054, so σₚ = 23.2%  
 3. False. Zero correlation only rules out a linear relationship. Example: x is symmetric around 0 and y = x². Then ρ ≈ 0, yet y is completely determined by x. In markets, two assets can look uncorrelated on average and still crash together, a tail dependence that a single ρ hides.  
 
+## Day 9: Linear Regression for Finance: Beta, Alpha, R²
+
+Regression splits return into **market part (beta)** and **leftover part (alpha + noise)**  
+
+### Concept
+CAPM-style regression  
+```
+r_stock = α + β · r_SPY + ε
+```
+- `β (beta) = Cov(r_stock, r_SPY) / Var(r_SPY)`. It also equals `corr × (σ_stock / σ_SPY)`. `β = 1.5` means the stock moves about 1.5% for every 1% SPY move, on average.
+- `α (alpha)` = the average return left over once the market part is taken out: `α = mean(r_stock) − β · mean(r_SPY)`. It’s usually tiny per day, so annualize it with α × 252.
+- **R²** = the share of the stock’s return variance explained by the market (= corr² for one regressor). The rest, 1 − R², is idiosyncratic risk, which diversification can remove.
+- Hedge ratio: to make $10k of a β = 1.4 stock market-neutral, short about $14k of SPY.
+
+### What to look for
+
+- Beta should match across all three methods (the OLS fit, cov/var, and corr × sd ratio).
+- QQQ: β above 1 and R² near 0.9, since it’s mostly the market. XLU (utilities): β well below 1. TSLA: high β but low R², meaning lots of stock-specific risk.
+- Alpha’s t-stat is usually below 2 even when the annualized alpha looks impressive. That’s a preview of Day 11: alpha is noisy.
+- Rolling beta changes noticeably over time. Treat a single beta number as an estimate, not a constant.
+
+### Quiz
+1. A stock has β = 1.2 and α = 0. SPY rises 2% today. What’s the expected stock return?
+2. Corr(stock, SPY) = 0.6, σ_stock = 30%, σ_SPY = 15%. What is β, and what is R²?
+3. A fund shows +15%/yr returns with β = 1.5 while SPY returned +10%/yr (ignore the risk-free rate). Roughly what is its alpha, and was the fund manager skilled?
+
+### Answers
+1. 1.2 × 2% = +2.4%
+2. β = 0.6 × 30/15 = 1.2. R² = 0.6² = 0.36, so 64% of its variance is idiosyncratic.
+3. α ≈ 15% − 1.5 × 10% = 0%. The returns are just leveraged market exposure, not skill.
