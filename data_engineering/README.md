@@ -70,4 +70,15 @@ Write `fetch_weather.py` that calls the free Open-Meteo forecast API for Kuala L
 1. Use requests.get(url, params=..., timeout=10) and raise_for_status().
 2. Turn the hourly block into a DataFrame with columns time, temperature_2m, precipitation, and parse time as a datetime.
 3. Print the row count, the date range and the hottest hour.
-4. Save it to data/kl_weather.csv.
+4. Save it to data/kl_weather.csv.  
+
+## Day 11: Python for data  
+
+### Tasks  
+Write a `fetch_json(url, max_retries=3)` function that:  
+1. sets a 10 s timeout and calls raise_for_status()  
+2. retries on timeouts, 429 and 5xx with backoff (1 s, 2 s, 4 s), logging each attempt  
+3. raises right away on other 4xx errors  
+4. raises a clear custom IngestError once retries are used up  
+
+Test against `https://httpbin.org/status/500`, `/status/404`, `/delay/15`
