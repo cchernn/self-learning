@@ -412,3 +412,33 @@ Prices behave like random walks. If you regress one random walk on another *comp
 1. It’s almost certainly spurious. DW = 0.06 means the residuals have ρ ≈ 0.97 and are basically a random walk themselves. Rerun the regression on returns, or if you think the two really are linked, test for cointegration (Day 18).
 2. ρ ≈ 1 − DW/2 = 1 − 0.6 = 0.4.
 3. False. β stays unbiased. What heteroskedasticity breaks is the SEs, and therefore the t-stats and p-values. Robust SEs leave β unchanged and correct the SEs.
+
+## Day 11: Hypothesis Testing  
+
+### Concept  
+- **Null hypothesis (H₀)**: true mean daily return μ = 0 (no edge).  
+- **Standard error of the mean**: how much the sample mean wobbles from sample to sample  
+`SE = s / √n` (s = std of daily returns, n = number of days)  
+- **t-statistic**: how many SEs your mean is from zero  
+`t = mean / SE`  
+- **p-value**: if H₀ were true, the probability of a |t| at least this large. Small p → luck is an unlikely explanation.  
+- **95% confidence interval**: `mean ± t_crit × SE` (t_crit ≈ 1.96 for big n). If the interval contains 0, you can’t reject “no edge.”  
+
+- **Key shortcut**: t ≈ annual Sharpe × √years. With a Sharpe of 0.5, reaching t = 2 takes (2/0.5)² = 16 years of data. Daily returns are very noisy, so you need a lot of data to prove an edge.  
+- **Caveats**: the plain t-test assumes independent returns. Real returns have volatility clustering and some autocorrelation, so it’s common to also report a Newey–West (HAC) t-stat, which corrects for that.  
+
+### What to look for:
+- Even SPY over 10 years probably has a t-stat only around 2, with p near 0.05. Its annualized CI will be very wide, likely spanning 20+ percentage points.  
+- Compare t with t_hac. Are they close? If they are, autocorrelation isn’t distorting the test much here.  
+yrs_for_t2: how many years each asset needs before its edge becomes “significant.”  
+- Yearly t-stats will swing hard, from strongly negative to strongly positive. One good year proves almost nothing.  
+
+### Quiz  
+1. A strategy has an annual Sharpe of 1.0. Roughly how many years of data give t ≈ 2?  
+2. You double the number of observations and the mean and std stay the same. By what factor does the SE change? What happens to t?  
+3. True or false: “p = 0.03 means there’s a 3% chance my strategy has no edge.”  
+
+### Answers  
+1. 4 years, from (2 / 1.0)² = 4.
+2. SE shrinks by 1/√2 ≈ 0.71×, so t grows by √2 ≈ 1.41×.
+3. False. p is P(data this extreme | no edge), not P(no edge | data). It also assumes this was the only strategy you tested. Trying many inflates false positives, which is Day 13’s topic.  
