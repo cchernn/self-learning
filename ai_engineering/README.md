@@ -415,4 +415,43 @@ What to look for: the agent writes a drawdown script, runs it, and answers. The 
 ### Answers
 1. Anything in allowed_tools is pre-approved, and allow rules are checked before can_use_tool, so your callback never ran. Fix it by removing Bash from allowed_tools, or use a deny rule or PreToolUse hook, since those are checked first.
 2. Use dontAsk with a tight allowed_tools list. In default, anything not pre-approved goes to a permission prompt, and with nobody watching the run would just hang or fail. dontAsk denies anything not pre-approved, so the run is safe and predictable. Avoid bypassPermissions unless you’re in a throwaway container.
-3. Examples: read files outside the temp dir (e.g. ~/.ssh, your .env) or make network calls to exfiltrate data. Rlimits and an empty env don’t stop either one. You need OS/container isolation: the SDK sandbox with an empty allowedDomains and restricted filesystem, or Docker with --network none and a read-only mount.
+3. Examples: read files outside the temp dir (e.g. ~/.ssh, your .env) or make network calls to exfiltrate data. Rlimits and an empty env don’t stop either one. You need OS/container isolation: the SDK sandbox with an empty allowedDomains and restricted filesystem, or Docker with --network none and a read-only mount.  
+
+## Day 11: Retrieval as a tool - agentic search vs classic RAG  
+
+Two Ways to Do it:  
+```
+CLASSIC RAG (one shot, you pick)
+question → embed → top-k chunks → stuffed into prompt → answer
+
+AGENTIC SEARCH (a loop, the model picks)
+question → Glob("**/*.md") → Grep("stop|exit") → Read(file) → maybe Grep again → answer
+```  
+
+**Agentic search** (the SDK's built-in Grep/Glob/Read tools):
+- no index to build or keep up to date  
+- read whole files, keeping context around a match  
+- exact matches work well  
+- only finds words it thinks to search for  
+- takes more turns, costs more time and tokens  
+
+**Classic RAG** (chunk the docs, embed, and return nearest k chunks):
+- one fast call, matches on meaning when using real embeddings  
+- scales to corpora too big to grep  
+- chunking cuts context apart  
+- index goes stale, does badly on exact identifiers  
+
+### What to look for
+- Agentic: the -> lines show the strategy: a Glob, then Grep with patterns the model invents (e.g. stop|exit|loss), then Reads. Count the turns.
+- RAG: usually 1–2 calls and fewer turns. Look at what comes back. I tested the handler: with the raw question it returns broker_api.md and the breakout entry chunk, and misses the 3×ATR stop and “cut losers fast”, because word overlap isn’t meaning. The model only does better if it rewrites the query (e.g. “stop loss exit”).
+- Compare the citations: whole files (agentic) vs #chunk fragments (RAG).
+
+### Quiz
+1. Your agent has to answer questions over a 40-file strategy repo that changes every day. Agentic search or a vector index? Why?  
+2. A RAG tool returns "Risk: initial stop at the breakout bar low" and the agent attributes it to the wrong strategy. What went wrong, and give two fixes.  
+3. Users ask “what did I lose on earnings plays?” but your journal says “gap down post-results”. Which approach struggles, and what would you add?  
+
+### Answers  
+1. Agentic search. The repo is small, there’s no index to rebuild every day, files are always current, and it handles exact names like tickers and functions well.
+2. Chunking cut the chunk off from its context (the # Breakout strategy header is in a different chunk). Fixes: add the doc title or section heading to every chunk (contextual chunking); return the source file and let the agent Read the full file; use bigger or overlapping chunks.
+3. Lexical approaches struggle: grep and bag-of-words both miss the synonyms “loss/earnings” vs “gap down/results”. Add real embeddings (semantic search) as a tool, or tell the agent in the tool description or system prompt to try synonyms. Hybrid (keyword + embeddings) is the robust default.
