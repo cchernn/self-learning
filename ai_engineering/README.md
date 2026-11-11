@@ -454,4 +454,47 @@ question → Glob("**/*.md") → Grep("stop|exit") → Read(file) → maybe Grep
 ### Answers  
 1. Agentic search. The repo is small, there’s no index to rebuild every day, files are always current, and it handles exact names like tickers and functions well.
 2. Chunking cut the chunk off from its context (the # Breakout strategy header is in a different chunk). Fixes: add the doc title or section heading to every chunk (contextual chunking); return the source file and let the agent Read the full file; use bigger or overlapping chunks.
-3. Lexical approaches struggle: grep and bag-of-words both miss the synonyms “loss/earnings” vs “gap down/results”. Add real embeddings (semantic search) as a tool, or tell the agent in the tool description or system prompt to try synonyms. Hybrid (keyword + embeddings) is the robust default.
+3. Lexical approaches struggle: grep and bag-of-words both miss the synonyms “loss/earnings” vs “gap down/results”. Add real embeddings (semantic search) as a tool, or tell the agent in the tool description or system prompt to try synonyms. Hybrid (keyword + embeddings) is the robust default.  
+
+## Day 12: Memory - short-term vs long-term  
+
+### Concept  
+1. **Short-term memory = context window**  
+Each `query()` call creates a *session*, which is a transcript the SDK saves to disk. The `ResultMessage` gives you the `session_id`. 
+- `resume=session_id` -> carry on with full history loaded  
+- `fork_session=True` -> branch off a copy and leave the original as is  
+- `continue_conversation=True` -> resume most recent session in folder  
+
+2. **Long-term memory = something outside the model (file or DB)**  
+```
+          ┌── session (short-term) ──┐
+user ───▶ │ history in context window │ ──resume──▶ same chat later
+          └─────────┬────────────────┘
+          remember()│   ▲ recall()
+                    ▼   │
+          ┌── store (long-term) ─────┐
+          │ JSON / SQLite / files    │  ◀── any future session
+          └──────────────────────────┘
+```
+What to store:  
+- store durable facts: preferences, rules, account settings, decisions that were made  
+- don't store: chit-chat, today's prices, anything that goes stale fast  
+- use stable keys so saving again overwrites old values. 
+- read memory at moment of the task, using `recall`, rather than putting whole store into the system prompt every time. This is just-in-time context.  
+
+### What to look for
+
+- A: the agent should call remember (probably risk_per_trade, category rule, and maybe market_focus).  
+- B: session= shows the same id as A. The agent can answer from the conversation history, so it may not call recall at all.  
+- C: you get a new session id with no history. The agent can only answer by calling recall, which reads the file. That’s long-term memory doing its job.  
+- At the end, open agent_memory.json and check what the agent decided was worth keeping.  
+
+### Quiz  
+1. Your agent resumes one session every day for a month, and its answers get slower and vaguer. Why, and what should you change?
+2. Would you store “AAPL closed at $231 today” with remember? Why or why not?
+3. Why give remember a stable key that overwrites, rather than appending every fact to a list?
+
+### Answers
+1. The session history keeps growing. You resend more tokens each time, and compaction summaries lose detail, so older facts get blurry. Use short sessions for each task, and keep durable facts in long-term memory that the agent fetches with recall when it needs them.
+2. No. A price goes stale within hours, and a saved one invites the agent to use an old number. Fetch live data with a tool. Store only durable facts, like “prefers limit orders”.
+3. Keys make writes idempotent. If you change your rule to 0.5%, the old 1% is replaced instead of both sitting in memory and contradicting each other, and the store stays small.
