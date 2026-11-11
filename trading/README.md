@@ -442,3 +442,35 @@ yrs_for_t2: how many years each asset needs before its edge becomes “significa
 1. 4 years, from (2 / 1.0)² = 4.
 2. SE shrinks by 1/√2 ≈ 0.71×, so t grows by √2 ≈ 1.41×.
 3. False. p is P(data this extreme | no edge), not P(no edge | data). It also assumes this was the only strategy you tested. Trying many inflates false positives, which is Day 13’s topic.  
+
+## Day 12: Bootstrapping & Permutation Tests  
+
+### Concepts  
+1. **Bootstrap: How certain is my estimate**  
+Treat your sample N returns as stand-in for the population  
+- Draw N returns with replacement  
+- Compute statistic you care about (mean, Sharpe ratio, max DD, ...)  
+- Repeat B times  
+- Spread of B values is sampling distribution. For a 95% percentage CI, take the 2.5th and 97.5th percentiles  
+
+2. **Permutation test: Is this better than luck?**  
+Pick a null hypothesis, eg. "my signla has no timing skill"  
+- Keep returns fixed and shuffle the position series (this keeps the same % of time in the market)  
+- Recompute the strategy return each time to get the **null distribution**  
+- p-value = (1+#null >= observed) / (1+B)
+
+### What to look for
+- How wide the Sharpe CI is. Ten years of data still leaves you very unsure; a range like 0.0 to 1.2 is normal. Does it include 0?
+- Whether the block CI is wider than the iid one (clustering adds real uncertainty).
+- Whether the excess-vs-B&H CI straddles 0. In a mostly-bull decade, sitting in cash often costs return even when it improves drawdowns.
+- The permutation p-values. Don’t be surprised if they’re unimpressive (> 0.05). That’s the honest answer, and Day 13 explains why it gets even harsher once you’ve tried many variants.
+
+### Quiz  
+1. Why does a plain iid bootstrap tend to understate the uncertainty of a daily strategy’s Sharpe, and what’s the fix?
+2. You run 1,000 permutations and 23 of them produce a statistic ≥ your observed value. What’s the p-value?
+3. Your block-bootstrap 95% CI for annualized Sharpe is [−0.10, 1.20]. Can you claim the Sharpe is positive at the 5% level? Which sorted values out of 2,000 boots form that CI?
+
+### Answers
+1. It shuffles days independently, which wipes out volatility clustering and autocorrelation. Calm and stormy days get mixed evenly, so each resample looks more “average” than real history can be. The fix is a block bootstrap (resample runs of consecutive days, e.g. 10–20 days long).
+2. p = (1 + 23)/(1 + 1000) ≈ 0.024. The “+1” counts the observed result as one of the possibilities and prevents an impossible p = 0.
+3. No. The interval includes 0, so a true Sharpe of 0 is consistent with the data. The CI is roughly the 50th and 1,950th sorted values (2.5% and 97.5% of 2,000).  
