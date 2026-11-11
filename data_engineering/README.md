@@ -81,4 +81,12 @@ Write a `fetch_json(url, max_retries=3)` function that:
 3. raises right away on other 4xx errors  
 4. raises a clear custom IngestError once retries are used up  
 
-Test against `https://httpbin.org/status/500`, `/status/404`, `/delay/15`
+Test against `https://httpbin.org/status/500`, `/status/404`, `/delay/15`  
+
+## Day 12: Python for data  
+
+### Tasks  
+Pick a public JSON API (eg. `api.data.gov.my` or API you used this week)  
+1. Use a bad URL or a 1-second timeout. The script should catch the error, log it, and exit with a non-zero code.
+2. Check the response with resp.raise_for_status() and retry 3 times with backoff.
+3. Put one string value into a numeric column. Find the problem with breakpoint() and fix it with an explicit astype or pd.to_numeric(errors="coerce").  
