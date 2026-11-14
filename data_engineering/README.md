@@ -108,3 +108,14 @@ Write ingest.py against Open-Meteo (free, no key). Use hourly temperature and pr
 2. Run pip freeze > requirements.txt. Then delete the venv, recreate it, reinstall, and run python ingest.py from a clean shell.
 3. Add a README.md with these sections: What it does · How to run · What broke · What I learned.
 4. Commit, push, and tick Week 2 in your plan’s progress checklist.  
+
+## Day 15: Tooling + modeling  
+
+### Tasks
+Take CSV from Week 1 or 2 and write `inspect.sh` that prints:
+1. Row count (minus header) and column count  
+2. The header, one column name per line, numbered  
+3. The top 5 most common values in a column you pass as a second argument  
+4. How many rows have an empty value in that column  
+
+Make it executable (`chmod +x`) add `set -euo pipefail`, and have it exist with clear message if file doesn't exists.  
