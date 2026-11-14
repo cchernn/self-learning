@@ -544,4 +544,58 @@ The levers:
 ### Answers
 1. The hook still protects you, because it runs first, before allow rules. can_use_tool silently stops working: allowed tools skip the callback, so you’d never be asked again.
 2. dontAsk. In default mode, a call that isn’t pre-approved goes to can_use_tool, which would hang or error with nobody there to answer. dontAsk denies it cleanly, and the model gets a message it can work around.
-3. (a) It’s enforced. The model can’t ignore or misread it, and a prompt injection in a tool result can’t talk it out of the limit. (b) It’s deterministic and testable: you can unit-test it, as I did offline, and log every block. Bonus: the deny reason teaches the model the limit at the exact moment it matters.
+3. (a) It’s enforced. The model can’t ignore or misread it, and a prompt injection in a tool result can’t talk it out of the limit. (b) It’s deterministic and testable: you can unit-test it, as I did offline, and log every block. Bonus: the deny reason teaches the model the limit at the exact moment it matters.  
+
+## Day 14: A market-data MCP server, driven by an agent  
+This week's ideas all come together:
+- an MCP Server
+- tools that return small, useful results  
+- errors
+- guardrail hook  
+
+```
+market_agent.py (host: Agent SDK)
+   │  spawns over stdio
+   ▼
+market_server.py (MCP server)
+   ├─ tools:    get_quote · get_bars_summary · get_indicator
+   ├─ resource: watchlist://default
+   └─ yfinance → Yahoo (free, no key)
+        ▲
+PreToolUse hook: logs each call + blocks tickers not on the watchlist
+```
+
+Design choices worth copying:
+
+- Summaries, not raw rows. get_bars_summary returns one line with the range, return, high/low and last 5 closes. Dumping 250 OHLC rows would eat your context window (Day 5).
+- Literal[...] → enum. period and indicator become JSON-schema enums, so the model can’t invent values like “rsi_14”.
+- ToolError → is_error: true. I checked this over a real stdio connection. The message tells the model how to fix the call, e.g. “Bursa stocks need .KL”.
+- readOnlyHint + idempotentHint. These tell the host the tools are safe to run in parallel and to retry.
+- A 60s cache. Repeated calls stay cheap and return the same answer.  
+
+### What to look for:
+
+- Several → calls in the same turn (the parallel fan-out for NVDA and MSFT).
+- A [hook] line for every call.
+- An ERROR result for TSLA. The agent should then tell you it’s off the watchlist rather than make up a number.
+- cost≈ is the SDK’s estimate. On a subscription it draws on your usage limits, not a bill.
+
+### Quiz (Day 14)  
+1. Why does get_bars_summary return a single line instead of the DataFrame as JSON?
+2. The guard runs in a PreToolUse hook in the agent. Why not put the watchlist check inside the MCP server instead? Or should it live in both places?
+3. You want this server to place Alpaca orders too. What would you change about annotations, allowed_tools and the approval flow?
+4. Tools vs resources vs prompts in MCP: which is chosen by the model, which by the app, and which by the user?
+5. When does classic RAG with embeddings beat agentic Grep/Glob/Read search?
+6. Name two things you’d store in long-term memory for a trading agent and one thing you shouldn’t.
+7. can_use_tool vs a PreToolUse hook: when would you reach for each?
+8. You let an agent run Bash. Name two limits you’d set before running it unattended.
+
+### Answers  
+1. Context is a budget. Hundreds of rows cost tokens on every later turn and bury the signal. Compute in Python, return the conclusion, and expose a narrower tool if the model needs more detail.
+2. A hook is policy for this agent: per-user, easy to change, and it never touches the server. A server check is enforcement for every host, including Claude Code and other clients. Safety-critical rules (e.g. order limits) belong in the server, because hosts can’t be trusted to apply them. Per-agent preferences can live in hooks. For real money, use both.
+3. Mark the order tool destructiveHint=True (not read-only, not idempotent). Add an idempotency key such as client_order_id so retries don’t double-fill. Don’t put it in allowed_tools; route it through can_use_tool or a hook that asks you to confirm. Enforce size/notional limits in the server, and start on paper trading.
+4. Tools: chosen by the model. Resources: chosen by the app/host, which decides what to attach. Prompts: chosen by the user, e.g. as slash commands.
+5. When you need meaning rather than exact words (synonyms, paraphrases), for big unstructured corpora where grep returns too much noise, or when latency and cost rule out many search turns. Agentic search wins on code, logs and structured files, and when the data changes often.
+6. Store: your standing rules (watchlist, risk limits, preferred indicators) and decisions with their reasons (a dated journal). Don’t store: live prices or positions, which go stale (fetch them fresh), or secrets and API keys.
+7. can_use_tool: a permission prompt or decision when a tool isn’t pre-approved, which is good for human-in-the-loop. PreToolUse hook: runs on every matching call, even pre-approved ones, so it suits logging, argument checks, rewriting and hard denies.
+8. Any two of: a sandbox or a restricted working directory; a network allowlist; a timeout or CPU/memory limit; no secrets in the environment; max_turns or a budget cap; deny rules for rm, curl and git push.
