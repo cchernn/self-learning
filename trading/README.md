@@ -474,3 +474,42 @@ Pick a null hypothesis, eg. "my signla has no timing skill"
 1. It shuffles days independently, which wipes out volatility clustering and autocorrelation. Calm and stormy days get mixed evenly, so each resample looks more “average” than real history can be. The fix is a block bootstrap (resample runs of consecutive days, e.g. 10–20 days long).
 2. p = (1 + 23)/(1 + 1000) ≈ 0.024. The “+1” counts the observed result as one of the possibilities and prevents an impossible p = 0.
 3. No. The interval includes 0, so a true Sharpe of 0 is consistent with the data. The CI is roughly the 50th and 1,950th sorted values (2.5% and 97.5% of 2,000).  
+
+## Day 13: Multiple Testing & Data Snooping  
+
+### Concept  
+1. **Lots of tests produce false positives.**  
+Test N independent useless strategies and
+```
+P(at least one false positive) = 1 − (1 − α)^N
+N = 20 → 1 − 0.95²⁰ = 64%
+N = 100 → 99.4%
+```  
+2. **Bonferroni correction (simple,strict).** Multiple each p-value by N, or equivalently use α/N as the bar.  
+3. **The best Sharpe from luck alone.** If N skill-less strategies each have Sharpe ≈ 0 with standard error σ_SR, the best of them is roughly:
+```
+E[max SR] ≈ σ_SR × [(1−γ)·Φ⁻¹(1 − 1/N) + γ·Φ⁻¹(1 − 1/(N·e))], with γ ≈ 0.5772
+```  
+4. **Deflated Sharpe Ratio (Bailey & López de Prado).** First, the Probabilistic Sharpe Ratio (PSR): the probability that the true Sharpe exceeds a benchmark SR₀, adjusted for track length T, skew and kurtosis:
+```
+PSR = Φ( (SR − SR₀)·√(T−1) / √(1 − skew·SR + (kurt−1)/4·SR²) )
+```
+(SR here is per-period, e.g. daily, and kurt is raw, not excess.)
+The DSR is just the PSR with SR₀ set to the expected max Sharpe from step 3. In plain words, it asks: “Does my winner beat the best result luck would give me from this many tries?” A DSR above about 0.95 is a good sign.  
+
+### What to look for:
+- The naive p-value of your winner is probably tiny. The Bonferroni one is much bigger.  
+- How close is your best Sharpe to the noise median / 95th percentile? If it sits inside the noise range, your “edge” could easily be luck.  
+- PSR vs DSR: the gap between them is what the 35 tries cost you. Note whether DSR clears 0.95.  
+- Compare the winner to buy & hold of the same ticker. Long/flat rules on stocks that went up earn some of that drift for free, so zero isn’t the fair bar. (Tomorrow’s mini project tackles that.)  
+- The average correlation is high, so the true number of independent tests is less than 35. Bonferroni overcorrects here; the noise test (which assumes independent strategies) is a little too harsh as well.  
+
+### Quiz  
+1. You backtest 50 independent strategies, none with real edge, at α = 0.05. What’s the chance at least one looks significant? What per-test p-value threshold would Bonferroni require?  
+2. You tried 100 parameter combinations on 4 years of daily data. Roughly what annualized Sharpe would you expect the best one to show from luck alone?  
+3. Your teammate reports: “PSR = 0.99, so the strategy is real.” What key question should you ask, and why might the DSR be far lower?  
+
+### Answers  
+1. 1 − 0.95⁵⁰ ≈ 92%. Bonferroni threshold = 0.05/50 = 0.001.  
+2. σ_SR ≈ 1/√4 = 0.5. For N = 100 the bracket ≈ 2.53 → Sharpe ≈ 1.27 from pure noise.  
+3. Ask “how many variants did you try?” PSR tests against SR₀ = 0, as if only one strategy was ever tested. If they picked the best of many, the right hurdle is the expected max Sharpe from that many trials. That raises SR₀ and can bring the DSR well below 0.95. Also check the track length and fat tails (negative skew and high kurtosis lower both PSR and DSR).  
