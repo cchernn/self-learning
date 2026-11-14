@@ -92,9 +92,19 @@ Pick a public JSON API (eg. `api.data.gov.my` or API you used this week)
 3. Put one string value into a numeric column. Find the problem with breakpoint() and fix it with an explicit astype or pd.to_numeric(errors="coerce").  
 
 ## Day 13: Python for data
+
+### Tasks  
 Write ingest.py against Open-Meteo (free, no key). Use hourly temperature and precipitation for Kuala Lumpur (lat 3.14, lon 101.69).
 
 1. extract(): requests.get with timeout=10, plus 3 retries with backoff
 2. transform(): build a DataFrame from hourly, parse time to datetime, and add an ingested_at column
 3. load(): write to data/weather_YYYY-MM-DD.parquet with pyarrow
-4. main() with argparse for --lat, --lon and --out, and a requirements.txt in a fresh venv
+4. main() with argparse for --lat, --lon and --out, and a requirements.txt in a fresh venv  
+
+## Day 14: Python for data  
+
+### Tasks  
+1. Swap the prints for logging, and wrap the main flow so any exception gets logged and ends with sys.exit(1).
+2. Run pip freeze > requirements.txt. Then delete the venv, recreate it, reinstall, and run python ingest.py from a clean shell.
+3. Add a README.md with these sections: What it does · How to run · What broke · What I learned.
+4. Commit, push, and tick Week 2 in your plan’s progress checklist.  
