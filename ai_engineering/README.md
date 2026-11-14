@@ -598,4 +598,55 @@ Design choices worth copying:
 5. When you need meaning rather than exact words (synonyms, paraphrases), for big unstructured corpora where grep returns too much noise, or when latency and cost rule out many search turns. Agentic search wins on code, logs and structured files, and when the data changes often.
 6. Store: your standing rules (watchlist, risk limits, preferred indicators) and decisions with their reasons (a dated journal). Don’t store: live prices or positions, which go stale (fetch them fresh), or secrets and API keys.
 7. can_use_tool: a permission prompt or decision when a tool isn’t pre-approved, which is good for human-in-the-loop. PreToolUse hook: runs on every matching call, even pre-approved ones, so it suits logging, argument checks, rewriting and hard denies.
-8. Any two of: a sandbox or a restricted working directory; a network allowlist; a timeout or CPU/memory limit; no secrets in the environment; max_turns or a budget cap; deny rules for rm, curl and git push.
+8. Any two of: a sandbox or a restricted working directory; a network allowlist; a timeout or CPU/memory limit; no secrets in the environment; max_turns or a budget cap; deny rules for rm, curl and git push.  
+
+## Day 15: When (not) to use multiple agents  
+
+Multi-agent systems look impressive in diagrams, but every extra agent costs tokens, time and another place for things to go wrong. Most production agents should be single agent with good tools.  
+
+### Concept  
+```
+Single agent:   model ⇄ tools ─────────────► answer
+
+Lead+workers:   lead ─► brief ─► worker ⇄ tools ─► summary ─┐
+                     ─► brief ─► worker ⇄ tools ─► summary ─┼► lead ─► answer
+                     ─► brief ─► worker ⇄ tools ─► summary ─┘
+```                     
+#### What a subagent costs you:
+
+1. Cost. Each worker starts with its own system prompt and tool definitions, then reasons on its own. The lead also pays tokens to write briefs and to read the summaries.
+2. Latency. Running workers in parallel helps, but you add at least one extra “plan → delegate → merge” round trip.
+3. Coordination overhead. A worker only knows what’s in its brief. Vague briefs lead to duplicated work, gaps or contradictions, and the lead can’t see inside a worker’s reasoning.
+4. Debugging. You end up with N transcripts instead of one.
+
+#### Use multiple agents when at least one of these holds:
+
+1. Breadth. The work splits into independent subtasks, like “research 10 companies”. Here parallelism beats a single long context.
+2. Context isolation. A subtask would flood the main context, e.g. reading 50 files to find one fact. A worker reads everything and returns 5 lines.
+3. Specialisation. A part of the job needs different tools, permissions or models, e.g. a read-only haiku scanner next to a sonnet writer with edit rights.
+
+#### Stay single-agent when:
+
+1. the steps are sequential and tightly coupled (each one depends on the last)
+everything fits comfortably in one context window
+2. latency matters (an interactive bot, or anything near order execution)
+3. a fixed workflow (Day 1) would do the job anyway
+
+### What to look for
+
+- Both runs should give the same answer.
+- The single agent will probably make three get_quote calls, possibly in parallel within one turn.
+- The multi-agent run will show Agent calls followed by the workers’ get_quote calls. Expect it to take longer and use more tokens (cache reads plus output) for no quality gain.
+- total_cost_usd is a notional estimate. On a subscription it reflects usage against your limits, not money billed.
+- If the subagent tool calls don’t show up, that’s because on some SDK versions the worker’s messages aren’t streamed to the parent. The usage fields still capture the cost.
+
+### Quiz
+
+1. You’re building a bot that checks your open positions, then decides whether to tighten a stop-loss, then places the order. Single agent or multi-agent? Why?
+2. Name the three conditions that justify adding subagents.
+3. Your multi-agent research system gives worse answers than the single-agent version on easy questions. What’s the most likely cause, and a cheap fix?
+
+### Answers
+1. Single agent, or even a fixed workflow. The steps are sequential and depend on each other, the context is small, and latency and auditability matter near order execution. Splitting would add hand-off points where information gets lost.
+2. Breadth (independent parallel subtasks), context isolation (keeping big intermediate data out of the main window), and specialisation (different tools, permissions or models per role).
+3. Coordination overhead. Information gets lost in the briefs and summaries, and the lead may over-delegate trivial work. Cheap fix: tell the lead to answer simple questions directly and delegate only when a task has clearly independent parts. Scale the effort to the query, e.g. 0 subagents for simple lookups, 2–4 for broad research.
