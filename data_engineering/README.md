@@ -90,3 +90,11 @@ Pick a public JSON API (eg. `api.data.gov.my` or API you used this week)
 1. Use a bad URL or a 1-second timeout. The script should catch the error, log it, and exit with a non-zero code.
 2. Check the response with resp.raise_for_status() and retry 3 times with backoff.
 3. Put one string value into a numeric column. Find the problem with breakpoint() and fix it with an explicit astype or pd.to_numeric(errors="coerce").  
+
+## Day 13: Python for data
+Write ingest.py against Open-Meteo (free, no key). Use hourly temperature and precipitation for Kuala Lumpur (lat 3.14, lon 101.69).
+
+1. extract(): requests.get with timeout=10, plus 3 retries with backoff
+2. transform(): build a DataFrame from hourly, parse time to datetime, and add an ingested_at column
+3. load(): write to data/weather_YYYY-MM-DD.parquet with pyarrow
+4. main() with argparse for --lat, --lon and --out, and a requirements.txt in a fresh venv
