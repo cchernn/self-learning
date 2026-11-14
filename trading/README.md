@@ -513,3 +513,29 @@ The DSR is just the PSR with SR₀ set to the expected max Sharpe from step 3. I
 1. 1 − 0.95⁵⁰ ≈ 92%. Bonferroni threshold = 0.05/50 = 0.001.  
 2. σ_SR ≈ 1/√4 = 0.5. For N = 100 the bracket ≈ 2.53 → Sharpe ≈ 1.27 from pure noise.  
 3. Ask “how many variants did you try?” PSR tests against SR₀ = 0, as if only one strategy was ever tested. If they picked the best of many, the right hurdle is the expected max Sharpe from that many trials. That raises SR₀ and can bring the DSR well below 0.95. Also check the track length and fat tails (negative skew and high kurtosis lower both PSR and DSR).  
+
+## Day 14: Does MA crossover on SPY beat luck?  
+Every backtest look like something, job is to find out if it is skill or noise before real money finds out for you.  
+
+- **Correlation (D8)**: co-movement scaled to [-1, 1]. Not stable; it rises in crashes, exactly when you need diversification.
+- **Regression (D9–10)**: beta = sensitivity to the market, alpha = what’s left over. Regress returns, never prices (spurious regression). Check residuals.
+- **t-test (D11)**: t = mean / (sd/√N). Handy shortcut: t ≈ annual Sharpe × √years.
+- **Bootstrap / permutation (D12)**: resample or scramble the data to see what “no edge” looks like, without assuming normality.
+- **Data snooping (D13)**: test 20 ideas and the best one looks great by luck alone. Your p-value has to pay for every idea you tried.  
+
+### What to look for
+
+- Section 1: Did the crossover beat buy-and-hold on total return? On Sharpe? Being flat ~25–40% of the time usually lowers return but can lower volatility too. Note the trade count: it’s tiny, so you have very few independent “bets”.
+- Sections 2–3: Is the “beats B&H” t-stat anywhere near 2? How wide is the Sharpe CI? If it straddles B&H’s Sharpe, you can’t tell them apart.
+- Section 4: Where does the real Sharpe sit in the random-timing distribution? A p-value above 0.05 means random timing with the same exposure often did as well.
+- Section 5: The key lesson. The best combo’s naive p will look much better than its max-of-grid p. The honest number is the one to believe.
+
+### Quiz  
+1. A strategy has a mean daily return of 0.03%, sd 1.0%, over 2,000 days. What’s the t-stat? Is it significant at 5%?
+2. You tested 40 parameter combos. The best has p = 0.004. What’s its Bonferroni-adjusted p-value, and what’s your verdict?
+3. Why test against circularly shifted positions instead of randomly shuffled daily positions?
+
+### Answers
+1. t = 0.0003 / (0.01/√2000) = 0.0003 / 0.000224 ≈ 1.34 (p ≈ 0.18). Not significant. About 8 years at an annual Sharpe of ~0.48 isn’t enough evidence.
+2. 0.004 × 40 = 0.16, so it’s not significant. The result is consistent with being the luckiest of 40 tries.
+3. Shuffling destroys the trade structure: the fake strategy would flip almost daily, with very different turnover and holding periods. Circular shifting keeps the same exposure, trade count and run lengths, so the only thing tested is timing, which is the skill the strategy claims to have.
