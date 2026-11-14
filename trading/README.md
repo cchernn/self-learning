@@ -538,4 +538,38 @@ Every backtest look like something, job is to find out if it is skill or noise b
 ### Answers
 1. t = 0.0003 / (0.01/√2000) = 0.0003 / 0.000224 ≈ 1.34 (p ≈ 0.18). Not significant. About 8 years at an annual Sharpe of ~0.48 isn’t enough evidence.
 2. 0.004 × 40 = 0.16, so it’s not significant. The result is consistent with being the luckiest of 40 tries.
-3. Shuffling destroys the trade structure: the fake strategy would flip almost daily, with very different turnover and holding periods. Circular shifting keeps the same exposure, trade count and run lengths, so the only thing tested is timing, which is the skill the strategy claims to have.
+3. Shuffling destroys the trade structure: the fake strategy would flip almost daily, with very different turnover and holding periods. Circular shifting keeps the same exposure, trade count and run lengths, so the only thing tested is timing, which is the skill the strategy claims to have.  
+
+## Day 15: Autocorrelation, ACF/PACF & Random Walk  
+
+Every momentum or mean-reversion strategy quietly assumes **past returns tell you something about future returns**. Autocorrelation measures that directly, if zero, a linear "yesterday predicts today" signal has nothing to work with, and any backtest that says otherwise is likely overfit.  
+
+### Concept  
+**Autocorrelation at lag k** is the correlation of a series with itself shifted k steps:  
+`ρₖ = Σ (rₜ − r̄)(rₜ₋ₖ − r̄) / Σ (rₜ − r̄)²`
+- ρ₁ > 0 → momentum (up days tend to follow up days)  
+- ρ₁ < 0 → mean reversion (up days tend to follow down days)  
+
+**ACF** is ρₖ plotted for k = 1, 2, 3…, and it includes indirect effects. PACF at lag k is the correlation with lag k after removing lags 1…k−1, so it shows only the direct link.  
+**AR(1) model**: rₜ = φ·rₜ₋₁ + εₜ  
+→ ACF decays like φᵏ, and PACF has a spike at lag 1 then is ~0. That shape is how you recognise it.  
+**Random walk**: Pₜ = Pₜ₋₁ + εₜ (in log prices). Returns are just the noise εₜ, so the true ACF of returns is 0 at every lag. “Markets are close to a random walk” means exactly this.  
+**Is it significant?** If the true ρ is 0, the sample ρₖ ≈ Normal(0, 1/T). The 95% band is ±1.96/√T. With T = 2,500 days (~10 yrs), that’s ±0.039.  
+**Ljung-Box test** checks many lags jointly: Q = T(T+2) Σ ρₖ²/(T−k), compared against χ² with m degrees of freedom. A small p-value means some autocorrelation exists.  
+
+### What to look for:
+
+- ACF r: expect small values, often slightly negative at lag 1 for SPY/QQQ. A few may cross the band (marked *), mostly because of 2020. Look at how much the lag-1 number shrinks when 2020 is dropped.
+- ACF |r|: should be far larger (often 0.2–0.4) and decay slowly. Compare it with the simulated random walk, where both columns are ≈ 0.
+- Ljung-Box: the p-value on |returns| should be essentially 0. The p-value on returns is often borderline. Before calling anything “significant”, remember Day 13 (multiple testing): 10 lags × 3 tickers = 30 tests.
+- Even a “significant” ρ₁ = −0.05 explains only ρ² = 0.25% of tomorrow’s variance, which is tiny once you pay trading costs (Day 21).
+
+### Quiz
+1. You have 2,500 daily returns and measure ρ₁ = −0.05. Is it statistically significant at 95%? Is it likely tradable?
+2. An AR(1) process has φ = 0.3. What are the ACF and the PACF at lag 3?
+3. A stock’s return ACF is ≈ 0 at all lags, but its |return| ACF is 0.3 at lag 1. Is it a random walk with i.i.d. steps? What can you forecast?
+
+### Answers
+1. The band is ±1.96/√2500 = ±0.039, and |−0.05| > 0.039, so it’s (just) significant. It’s probably not tradable: R² ≈ 0.0025, the result is fragile to a few crash days, and spreads and slippage eat a signal that small.
+2. ACF at lag 3 = 0.3³ = 0.027. PACF at lag 3 = 0, because an AR(1) has only a direct lag-1 link.
+3. No. The returns are uncorrelated but not independent, so the steps aren’t i.i.d. Volatility clusters, which means you can forecast the size of moves (risk) even if you can’t forecast their direction. That’s the basis for volatility targeting (Day 20) and GARCH models.
