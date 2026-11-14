@@ -498,3 +498,50 @@ What to store:
 1. The session history keeps growing. You resend more tokens each time, and compaction summaries lose detail, so older facts get blurry. Use short sessions for each task, and keep durable facts in long-term memory that the agent fetches with recall when it needs them.
 2. No. A price goes stale within hours, and a saved one invites the agent to use an old number. Fetch live data with a tool. Store only durable facts, like “prefers limit orders”.
 3. Keys make writes idempotent. If you change your rule to 0.5%, the old 1% is replaced instead of both sitting in memory and contradicting each other, and the store stays small.
+
+## Day 13: Guardrails and permissions  
+Guardrails are how you make sure a confused or prompt-injected agent physically can't do the dangerous thing.  
+
+### Concept  
+```
+model wants tool X
+  1. Hooks (PreToolUse)    → can deny/allow/modify. Runs FIRST.
+  2. Deny rules            → disallowed_tools
+  3. Permission mode       → permission_mode
+  4. Allow rules           → allowed_tools (auto-approve)
+  5. can_use_tool callback → your code / a human decides
+  → tool runs (or the model gets a denial message)
+```  
+The levers:  
+- `tools=[...]`: what exists at all. `tools=[]` removes Bash/Write/etc. This is the strongest guardrail because the model can’t call a tool it doesn’t have.
+- `disallowed_tools`: hard deny, even if something else would allow it. Good for e.g. `"Bash(rm *)"` when you keep Bash.
+- `allowed_tools`: pre-approved, no questions asked. Use it for **read-only** tools only.
+- `permission_mode`:
+   - default: anything not pre-approved goes to can_use_tool.
+   - acceptEdits: auto-approves file edits.
+   - plan: no execution, only planning.
+   - dontAsk: denies anything not pre-approved. Good for headless jobs.
+   - bypassPermissions: approves everything. Only use it inside a throwaway sandbox.
+- PreToolUse hook: deterministic policy, written as code. Typical uses: risk limits, path checks, logging. Return permissionDecision: "deny" plus a reason, and the model reads that reason and adapts.
+- `can_use_tool(name, input, ctx)`: the human-in-the-loop point. Return `PermissionResultAllow()` (optionally with `updated_input=` to edit the args) or `PermissionResultDeny(message=...)`.  
+
+**Design rule**: hooks hold the policy (always true, no human needed). can_use_tool holds the judgement call (a human looks at it). Never put a limit in the system prompt and trust it. Prompts are advice; hooks are enforcement.
+
+**Gotcha**: anything in allowed_tools skips can_use_tool completely. The SDK even warns you about this. So if you need to gate every call, use a hook.  
+
+### What to look for
+- get_quote calls run without prompting you, because they’re in allowed_tools.  
+- AAPL x10 (about $2.3k) passes the hook, then you get an [APPROVAL] prompt. Type y and it fills.  
+- MSFT x50 (about $20.9k) gets [HOOK] BLOCKED and you’re never asked. The model sees the reason. It may try a smaller quantity that fits under the limit. That’s fine, because it’s still within policy and still needs your y.  
+- TSLA is blocked by the whitelist.  
+- On startup you’ll see a CanUseToolShadowedWarning about get_quote. That’s expected here, and it’s the gotcha from above showing up.  
+
+### Quiz  
+1. You add "mcp__broker__place_order" to allowed_tools “to save typing y”. Which guardrail still protects you, and which one silently stops working?
+2. Your nightly headless job has no human present. Which permission_mode fits better, default or dontAsk, and why?
+3. Why is “never trade more than $5k” better as a PreToolUse hook than as a line in the system prompt? Give two reasons.
+
+### Answers
+1. The hook still protects you, because it runs first, before allow rules. can_use_tool silently stops working: allowed tools skip the callback, so you’d never be asked again.
+2. dontAsk. In default mode, a call that isn’t pre-approved goes to can_use_tool, which would hang or error with nobody there to answer. dontAsk denies it cleanly, and the model gets a message it can work around.
+3. (a) It’s enforced. The model can’t ignore or misread it, and a prompt injection in a tool result can’t talk it out of the limit. (b) It’s deterministic and testable: you can unit-test it, as I did offline, and log every block. Bonus: the deny reason teaches the model the limit at the exact moment it matters.
