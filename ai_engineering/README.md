@@ -649,4 +649,53 @@ everything fits comfortably in one context window
 ### Answers
 1. Single agent, or even a fixed workflow. The steps are sequential and depend on each other, the context is small, and latency and auditability matter near order execution. Splitting would add hand-off points where information gets lost.
 2. Breadth (independent parallel subtasks), context isolation (keeping big intermediate data out of the main window), and specialisation (different tools, permissions or models per role).
-3. Coordination overhead. Information gets lost in the briefs and summaries, and the lead may over-delegate trivial work. Cheap fix: tell the lead to answer simple questions directly and delegate only when a task has clearly independent parts. Scale the effort to the query, e.g. 0 subagents for simple lookups, 2–4 for broad research.
+3. Coordination overhead. Information gets lost in the briefs and summaries, and the lead may over-delegate trivial work. Cheap fix: tell the lead to answer simple questions directly and delegate only when a task has clearly independent parts. Scale the effort to the query, e.g. 0 subagents for simple lookups, 2–4 for broad research.  
+
+## Day 16: The Orchestrator-Worker Pattern  
+
+### Concept  
+```
+            user request
+                 │
+          ┌──────▼──────┐   plans, delegates, combines results
+          │  LEAD (sonnet)│  tools = [Agent] only
+          └──┬───────┬───┘
+     task ↓  │       │  ↓ task          (short, self-contained brief)
+   ┌─────────▼┐   ┌──▼─────────┐
+   │trend (haiku)│ │risk (haiku)│     each: own context, own tool list
+   └─────────┬┘   └──┬─────────┘
+   result ↑  │       │  ↑ result       (compressed: 1–2 lines)
+          └──▼───────▼──┐
+             final answer
+```  
+
+How it works in the Agent SDK:
+
+- You define workers with `agents={"name": AgentDefinition(description, prompt, tools, model)}`.  
+- The lead hands work to a worker by calling the built-in Agent tool (older Claude Code versions called it Task) with subagent_type and a prompt.  
+- The lead chooses a worker by reading its description, so write it like a tool description: what the worker does and what input it needs.  
+- A worker starts with a fresh context. It sees only the brief the lead writes, never the user’s message or the lead’s history, so the brief must stand on its own.  
+- In the message stream, a message from a worker has `parent_tool_use_id` set. A message from the lead has it as `None`.  
+
+Design rules:
+
+- Give the lead planning tools only. If it can fetch data itself, it often skips delegating.  
+- Give each worker only the tools for its job (least privilege).  
+- Make workers return short results in a fixed format, which keeps the lead’s context lean.  
+
+### What to look for:
+
+- Four LEAD DELEGATE -> lines. They often all come in one turn, as parallel calls.  
+- Indented worker tool mcp__market__… lines, each worker calling only its own tool.  
+- A short final comparison from the lead.  
+- In model_usage at the end, both a Sonnet model and a Haiku model. That shows the tiering worked. The cost figure is an API-price estimate; on your subscription the run counts against your usage limits instead.  
+
+### Quiz
+1. A worker returns “trend is up” with no ticker, even though the user asked about two stocks. What is the most likely cause, and how do you fix it?  
+2. Why give the workers haiku and the lead sonnet, rather than the other way round?  
+3. Your lead has 6 workers, and it keeps sending risk questions to the trend analyst. Which single field should you look at first?  
+
+### Answers
+1. The worker never sees the user’s message, only the brief the lead writes. The lead most likely sent a vague prompt like “check the trend”. Fix it by telling the lead that each brief must name the ticker and be self-contained. The worker’s own prompt can also require it to start its reply with the symbol.  
+2. Planning, deciding what to delegate and combining results are the hard reasoning steps, and they happen once. Workers run narrow, well-specified tasks many times, so a cheap, fast model does them well and saves the most usage.  
+3. Each worker’s description. The lead picks a worker the way it picks a tool, by reading its description. Make each description specific, and say what the worker does not cover if needed.  
