@@ -119,3 +119,11 @@ Take CSV from Week 1 or 2 and write `inspect.sh` that prints:
 4. How many rows have an empty value in that column  
 
 Make it executable (`chmod +x`) add `set -euo pipefail`, and have it exist with clear message if file doesn't exists.  
+
+## Day 16: Tooling + modeling  
+
+### Tasks  
+1. git switch -c feat/postgres-docker and add a placeholder docker-compose.yml plus a README line about it. Commit.  
+2. Switch back to main, edit the same README line differently and commit, so the two branches now conflict.  
+3. Merge the feature branch, resolve the conflict by hand and commit.  
+4. Push both, open a pull request on GitHub (even into your own repo) and merge it.  
