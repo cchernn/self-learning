@@ -572,4 +572,48 @@ Every momentum or mean-reversion strategy quietly assumes **past returns tell yo
 ### Answers
 1. The band is ±1.96/√2500 = ±0.039, and |−0.05| > 0.039, so it’s (just) significant. It’s probably not tradable: R² ≈ 0.0025, the result is fragile to a few crash days, and spreads and slippage eat a signal that small.
 2. ACF at lag 3 = 0.3³ = 0.027. PACF at lag 3 = 0, because an AR(1) has only a direct lag-1 link.
-3. No. The returns are uncorrelated but not independent, so the steps aren’t i.i.d. Volatility clusters, which means you can forecast the size of moves (risk) even if you can’t forecast their direction. That’s the basis for volatility targeting (Day 20) and GARCH models.
+3. No. The returns are uncorrelated but not independent, so the steps aren’t i.i.d. Volatility clusters, which means you can forecast the size of moves (risk) even if you can’t forecast their direction. That’s the basis for volatility targeting (Day 20) and GARCH models.  
+
+## Day 16: Stationarity and the ADF test  
+
+### Concept  
+**Stationary** (weakly) means the mean, variance and the autocovariance at each lag stay the same over time. A stationary series keeps getting pulled back toward its mean. A non-stationary one can wander off and never come back.  
+
+Simplest model that shows the difference is AR(1):
+`x_t = φ·x_{t-1} + ε_t`, with ε having st. dev. σ  
+- |φ| < 1 means the series is stationary. Its long-run variance is σ² / (1 − φ²), a finite number.  
+- φ = 1 is a random walk, also called a “unit root”. After t steps the variance is t·σ², so it keeps growing without limit.  
+
+The **ADF (Augmented Dickey-Fuller) test**. Subtract x_{t-1} from both sides of the AR(1) and add lagged differences to soak up autocorrelation:  
+```
+Δx_t = α + β·t + γ·x_{t-1} + Σ δ_i·Δx_{t-i} + e_t, where γ = φ − 1
+```
+- `H0: γ = 0`, meaning there’s a unit root (non-stationary).  
+- `H1: γ < 0`, meaning the series is stationary.  
+- The test statistic is the t-stat on γ. Under H0 it does not follow a normal or t distribution. It follows a Dickey-Fuller distribution, which sits further to the left. With a constant, the 5% critical value is about −2.86, not −1.65.  
+- `regression="c"` adds a constant, used for returns. "ct" adds a constant plus a trend, used for prices that drift upward.  
+
+**KPSS** tests it the other way around. **H0 is stationary.**. Running both is a good cross-check:
+
+| ADF | KPSS | Verdict |  
+| --- | --- | --- |  
+| reject | don't reject | stationary |  
+| don't reject | reject | unit root |  
+| both reject or both don't |   | unclear, or not enough data |  
+
+### What to look for:
+
+- Log prices: the ADF p-value should be well above 0.05 and the KPSS p-value about 0.01. That’s the unit-root verdict.
+- Log returns: the ADF stat should be hugely negative (around −15 to −50, p ≈ 0) and the KPSS p-value about 0.10. That’s the stationary verdict.
+- Any ticker whose log price comes out “stationary”: GLD and TLT go through long regimes and are the likeliest. Ask yourself whether that’s real mean reversion or one lucky sample window.
+- Power table: with φ = 1 the rejection rate should be about 5%, which is the test’s size working correctly. On a synthetic dry run with about 2,700 days, I got roughly 50% at φ = 0.995 and close to 100% at φ = 0.99. Try n = 500 and watch the power collapse. φ = 0.995 means a half-life of about 140 days, so slow mean reversion is very hard to detect.  
+
+### Quiz
+1. ADF on SPY log prices gives p = 0.40. Your friend says: “Proven, SPY is a random walk.” What’s wrong with that conclusion?  
+2. A stationary AR(1) has φ = 0.8 and σ = 2. What is its long-run standard deviation? And what is the st. dev. of a random walk with σ = 2 after 25 days?  
+3. Your ADF regression (with a constant) gives a t-stat on γ of −2.5. A colleague says this beats the one-sided 5% normal critical value of −1.65, so the series is stationary. Do you reject H0 at 5%?  
+
+### Answers
+1. Failing to reject H0 is not evidence that H0 is true. ADF has low power against near-unit-root processes, so a slowly mean-reverting series (φ = 0.995) often gives a large p-value too. The correct statement is: “We can’t distinguish SPY’s log price from a random walk with this data.” For trading purposes, that’s still a good reason not to build mean-reversion signals on raw prices.  
+2. Variance = σ²/(1 − φ²) = 4/(1 − 0.64) = 4/0.36 = 11.11, so the st. dev. is ≈ 3.33. For the random walk: variance = 25 × 4 = 100, so the st. dev. is 10, and it keeps growing with √t.  
+3. No. Under H0 the ADF stat follows the Dickey-Fuller distribution, not a normal or t. With a constant, the 5% critical value is about −2.86. Since −2.5 > −2.86, you fail to reject the unit root. Using normal critical values is a classic mistake that makes series look stationary when they aren’t.  
