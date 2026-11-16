@@ -617,3 +617,51 @@ The **ADF (Augmented Dickey-Fuller) test**. Subtract x_{t-1} from both sides of 
 1. Failing to reject H0 is not evidence that H0 is true. ADF has low power against near-unit-root processes, so a slowly mean-reverting series (φ = 0.995) often gives a large p-value too. The correct statement is: “We can’t distinguish SPY’s log price from a random walk with this data.” For trading purposes, that’s still a good reason not to build mean-reversion signals on raw prices.  
 2. Variance = σ²/(1 − φ²) = 4/(1 − 0.64) = 4/0.36 = 11.11, so the st. dev. is ≈ 3.33. For the random walk: variance = 25 × 4 = 100, so the st. dev. is 10, and it keeps growing with √t.  
 3. No. Under H0 the ADF stat follows the Dickey-Fuller distribution, not a normal or t. With a constant, the 5% critical value is about −2.86. Since −2.5 > −2.86, you fail to reject the unit root. Using normal critical values is a classic mistake that makes series look stationary when they aren’t.  
+
+## Day 17: Mean Reversion and Half-Life  
+Yesterday's ADF test tells whether a series mean-reverts. For trading you also need *how fast*. The half-life sets holding period, your z-score lookback, and your stop-out time.  
+
+### Concept  
+**Ornstein-Uhlenbeck (OU) Intuition**  
+```
+dx = θ(μ − x)dt + σ dW
+```  
+- θ = speed of reversion (bigger means faster)  
+- σ = noise kicking it around  
+
+**Discrete version (what you estimate)**. Regress the daily change on yesterday’s level:
+```
+Δx_t = c + λ·x_{t−1} + ε_t, with λ ≈ −θ
+```  
+- λ < 0 means it mean-reverts.
+- λ ≈ 0 means it’s a random walk.
+
+**Half-life**. This is the expected time for a deviation to shrink by half:
+```
+HL = −ln(2) / λ
+```  
+Two rules of thumb:  
+1. Deviations decay geometrically. After 1 HL half the gap is left, after 2 HLs a quarter, after 3 HLs an eighth.  
+2. The usual practice is to set your z-score lookback to roughly the half-life (or a small multiple of it).  
+
+Caveats:  
+- The t-stat on λ does not use normal critical values. That’s the Dickey-Fuller problem from Day 16: you need about −2.86 at 5%, not −1.96.  
+- In finite samples λ is biased toward looking more negative, so half-lives tend to be underestimated.  
+- Half-lives drift over time. Always check sub-periods.  
+
+### What to look for
+
+- Simulated OU: HL should come out near 13–14 days. This confirms the estimator works when the truth is known.  
+- SPY log price: λ near 0 and t well above −2.86. The HL is huge or infinite, which is what a random walk looks like.  
+- KO/PEP and XOM/CVX: these probably show finite half-lives. Check whether t actually clears −2.86 or only −1.96.  
+- By-year table: how much does the HL jump around? That instability is the real risk in mean-reversion trading. 
+
+### Quiz  
+1. You estimate λ = −0.02 on a spread. What’s the half-life?  
+2. A spread is 2σ above its mean and has a half-life of 10 days. With no new shocks, roughly where do you expect it after 20 days?  
+3. On a stock’s log price you get λ = −0.004 with t = −2.1. Your friend says “significant at 5%, it mean-reverts, let’s trade it.” Give two reasons to push back.  
+
+### Answers  
+1. HL = 0.693 / 0.02 ≈ 34.7 days.
+2. Two half-lives means a quarter of the gap is left: 2σ × 0.25 = 0.5σ.
+3. (a) It’s a unit-root test, so the critical value is about −2.86, not −1.96. A t of −2.1 does not reject the random walk. (b) Even taken at face value, HL = 0.693 / 0.004 ≈ 173 days. That’s far too slow to trade, and the small-sample bias means the true HL is probably even longer. Bonus point: testing many stocks until one looks significant is data snooping (Day 13).
