@@ -127,3 +127,12 @@ Make it executable (`chmod +x`) add `set -euo pipefail`, and have it exist with 
 2. Switch back to main, edit the same README line differently and commit, so the two branches now conflict.  
 3. Merge the feature branch, resolve the conflict by hand and commit.  
 4. Push both, open a pull request on GitHub (even into your own repo) and merge it.  
+
+## Day 17: Tooling + modeling  
+
+### Tasks  
+1. Write a `docker-compose.yml` with a `postgres:16` service: user, password and DB set as env vars, port `5432:5432`, and a named volume mounted at `/var/lib/postgresql/data`.  
+2. Add a second service, `pgadmin` (or just use `psql`), and connect to the DB.  
+3. Create a table and insert 3 rows.
+4. Run `docker compose down`, then `up -d` again.
+✅ Done when your 3 rows are still there after the restart and the compose file is committed to your repo.  
