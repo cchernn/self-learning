@@ -699,3 +699,43 @@ Design rules:
 1. The worker never sees the user’s message, only the brief the lead writes. The lead most likely sent a vague prompt like “check the trend”. Fix it by telling the lead that each brief must name the ticker and be self-contained. The worker’s own prompt can also require it to start its reply with the symbol.  
 2. Planning, deciding what to delegate and combining results are the hard reasoning steps, and they happen once. Workers run narrow, well-specified tasks many times, so a cheap, fast model does them well and saves the most usage.  
 3. Each worker’s description. The lead picks a worker the way it picks a tool, by reading its description. Make each description specific, and say what the worker does not cover if needed.  
+
+## DAy 17: Subagents and context isolation  
+
+A subagent starts with an empty context window, does messy work (greps, file reads, dead ends) and hands back a short result. The lead stays small, cheap and focused. If you get hand-off contract wrong, you get one of two failures: workers that misunderstand the task, or a lead that drowns in pasted data.  
+
+### Concept  
+```
+LEAD context (stays small)
+ ├─ user question
+ ├─ Agent(task="…self-contained brief…")  ──►  SUBAGENT context (fresh, empty)
+ │                                              ├─ its own system prompt
+ │                                              ├─ Grep / Read × N   ← big outputs live HERE
+ │                                              └─ final message
+ └─ ◄── tool result = ONLY that final message (the "digest")
+```  
+Key rules:  
+1. Isolation runs both ways. The subagent can’t see the lead’s conversation, and the lead never sees the subagent’s tool calls. Only the task prompt goes in and only the final message comes out.
+2. The task prompt is the whole briefing. Include the goal, the scope, any constraints, and what “done” looks like. “Analyse the log” fails. “In trades.csv, count REJECTED rows per symbol, return the top one with its count” works.
+3. Set an output contract. In the subagent’s prompt, give a length cap, a format, and “evidence, not raw rows”. Compression is the reason you’re using a subagent at all.
+4. Least privilege. Each AgentDefinition gets its own tools=[...] and model= (haiku for grunt work).
+5. You can see inside in code. Messages from inside a subagent carry parent_tool_use_id. The lead’s own messages have None. That’s your tracing hook.
+6. When not to isolate. If the worker needs most of the lead’s context to do its job, isolation just means re-sending that context. Only delegate work that can be briefed in a paragraph.
+
+### What to look for
+
+- A `DELEGATES -> log-digester` line. Read the brief the lead wrote. Is it self-contained?
+- `[sub] tool Grep/Read …` lines. These ran in the subagent’s context, not the lead’s.
+- The last line: thousands of characters inside, a few hundred returned. That gap is the context isolation.
+- Correctness: the true answer is AAPL with 23 (SPY is close behind at 22). Check the agent’s answer with one line of pandas. The CLI’s Read tool returns about 2,000 lines by default, so a subagent that reads the file instead of grepping can miss the last 1,000 rows and report the wrong winner without any warning. Compression also hides mistakes, which is why Day 20 covers verification.  
+
+### Quiz
+
+1. A subagent needs your 40-message conversation history to do its job well. Is delegating still a good idea? What would you do instead?
+2. Your digester sometimes pastes 200 raw CSV rows back to the lead. Name two places to fix that, one in the prompt and one in code.
+3. How can your code tell whether a ToolUseBlock came from the lead or from inside a subagent, and why does that matter for cost tracing?
+
+### Answers  
+1. Usually not. Isolation only pays off when the task can be briefed compactly. If the worker needs most of the history, you re-send it all (no saving) or brief it badly (lower quality). Do the work in the lead, or first distil the history into a short brief and delegate only the narrow part.
+2. Prompt: an explicit output contract in the AgentDefinition.prompt (“max 5 lines / JSON schema, never raw rows”). Code: check the size of the digest ToolResultBlock and reject or truncate oversized ones (for example in a PostToolUse hook). Or give the worker narrower tools, such as Grep with a count instead of a full Read.
+3. Check parent_tool_use_id. It’s None for the lead and set to the spawning Agent call’s id inside a subagent. That lets you attribute each tool call and each token cost to the agent that made it, so you can see which worker is expensive or looping. You’ll use this for tracing on Day 23.  
