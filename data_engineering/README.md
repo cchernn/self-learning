@@ -136,3 +136,12 @@ Make it executable (`chmod +x`) add `set -euo pipefail`, and have it exist with 
 3. Create a table and insert 3 rows.
 4. Run `docker compose down`, then `up -d` again.
 ✅ Done when your 3 rows are still there after the restart and the compose file is committed to your repo.  
+
+## Day 18: Tooling + modeling  
+
+### Tasks  
+Using the data your `ingest.py` pulls:
+1. Write down the grain in one sentence.  
+2. Pick 1 fact table and at least 3 dimensions, including dim_date. List each table’s columns, with surrogate keys on the dimensions.  
+3. Write the CREATE TABLE statements and run them in the Postgres you started in Docker this week.  
+4. Insert 5 or more hand-made rows, then run one query that joins the fact table to two dimensions with a GROUP BY.  
