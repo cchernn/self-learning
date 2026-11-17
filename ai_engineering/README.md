@@ -739,3 +739,42 @@ Key rules:
 1. Usually not. Isolation only pays off when the task can be briefed compactly. If the worker needs most of the history, you re-send it all (no saving) or brief it badly (lower quality). Do the work in the lead, or first distil the history into a short brief and delegate only the narrow part.
 2. Prompt: an explicit output contract in the AgentDefinition.prompt (“max 5 lines / JSON schema, never raw rows”). Code: check the size of the digest ToolResultBlock and reject or truncate oversized ones (for example in a PostToolUse hook). Or give the worker narrower tools, such as Grep with a count instead of a full Read.
 3. Check parent_tool_use_id. It’s None for the lead and set to the spawning Agent call’s id inside a subagent. That lets you attribute each tool call and each token cost to the agent that made it, so you can see which worker is expensive or looping. You’ll use this for tracing on Day 23.  
+
+## Day 18: Parallel fan-out and aggregation with asyncio  
+
+### Concept  
+```
+              ┌─ worker(AAPL) ─┐
+ main ─fan-out┼─ worker(MSFT) ─┼─ gather ─ aggregate (plain Python)
+              ├─ worker(NVDA) ─┤
+              └─ worker(ZZZZ) ✗┘   → reported as "missing"
+```  
+Each worker is its own `query()` call: Five pieces of production hygiene:  
+1. asyncio.gather(..., return_exceptions=True): without it, the first exception you await blows up the whole gather and you lose the results that were already done. With it, failures come back as values you can sort out.  
+2. A Semaphore caps concurrency. Every query() starts a CLI process and draws on your subscription’s rate limits. Use 2–4 at a time, not 50.  
+3. asyncio.wait_for adds a per-worker timeout, so one stuck agent can’t stall the whole batch.  
+4. Retry with backoff, but only for transient failures, and sleep outside the semaphore so a retrying worker doesn’t hold up a slot.  
+5. Check how the run finished, not just whether it raised. A run can end “cleanly” with ResultMessage.is_error or subtype="error_max_turns". And a run can succeed and still return junk, which is a semantic failure. Validate it.  
+
+**Aggregate cheaply**: have workers return small structured JSON, merge with plain Python with no extra LLM call.  
+
+Wall time ≈ the slowest worker × (N ÷ concurrency), not the sum of all workers.  
+
+### What to look for
+
+- ok lines arrive out of order, two at a time, because of the semaphore.
+- FLAKY fails on attempt 1, then succeeds on attempt 2.
+- ZZZZ is the interesting one. The tool returns is_error, but Haiku may still return valid-looking JSON (e.g. flat, 0.00%, “unknown symbol”). That’s a semantic failure that slipped through, so your aggregate is lying to you.
+Total wall time should be far less than 5 × one worker’s time.
+
+### Quiz  
+
+1. You gather 20 workers without return_exceptions=True, and worker #3 raises. What happens to the other 19, and what do you get back?
+2. Which of these should you retry: (a) TimeoutError, (b) the tool says “Unknown symbol”, (c) subtype="error_max_turns"? Why?
+3. Your 8 parallel workers each return a 2,000-word report, and you paste all of them into one synthesizer agent. What’s the design smell, and what’s the fix?
+
+### Answers  
+
+1. The first exception propagates out of await gather(...) right away, and you get no list of results, so even the finished ones are lost unless you stored them elsewhere. The other tasks are not cancelled (they keep running and using your quota) unless the outer task gets cancelled. return_exceptions=True gives you all 20 outcomes as values.  
+2. (a) Yes: timeouts are usually transient. (b) No: that’s permanent bad input, and retrying just burns usage, so fail fast and report it. (c) Maybe once, with a change (a higher max_turns or a clearer prompt). Retrying unchanged usually hits the same wall.  
+3. Context bloat: the synthesizer’s window fills with 16k words of mostly-redundant prose, which costs more and reasons worse. Fix: make workers return compressed, structured output (a schema with key findings plus sources), merge mechanically in Python where you can, and give the synthesizer only the distilled facts.  
