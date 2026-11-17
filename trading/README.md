@@ -664,4 +664,45 @@ Caveats:
 ### Answers  
 1. HL = 0.693 / 0.02 ≈ 34.7 days.
 2. Two half-lives means a quarter of the gap is left: 2σ × 0.25 = 0.5σ.
-3. (a) It’s a unit-root test, so the critical value is about −2.86, not −1.96. A t of −2.1 does not reject the random walk. (b) Even taken at face value, HL = 0.693 / 0.004 ≈ 173 days. That’s far too slow to trade, and the small-sample bias means the true HL is probably even longer. Bonus point: testing many stocks until one looks significant is data snooping (Day 13).
+3. (a) It’s a unit-root test, so the critical value is about −2.86, not −1.96. A t of −2.1 does not reject the random walk. (b) Even taken at face value, HL = 0.693 / 0.004 ≈ 173 days. That’s far too slow to trade, and the small-sample bias means the true HL is probably even longer. Bonus point: testing many stocks until one looks significant is data snooping (Day 13).  
+
+## Day 18: Cointegration & Pairs Trading  
+
+Most prices are random walks, so can't bet on one stock returning to normal. But two prices can wander together so that a combination of them is stationary. The combination, a **spread**, is something you can mean-revert trade. This is the statistical basis of pairs trading  
+
+### Concept  
+**Correlation ≠ cointegration**  
+- *Correlation* is about **returns**: do they move the same way day to day?  
+- *Cointegration* is about **levels**: do the prices stay tied together over the long run?  
+
+Definition. Let y and x be log prices, both I(1) (non-stationary). They are cointegrated if some β gives a stationary spread:  
+```
+s_t = y_t − β·x_t − c
+```  
+Engle-Granger test (2 steps)  
+1. Run OLS of y on x to get the hedge ratio β and intercept c.  
+2. Run an ADF test on the residuals s_t. If they’re stationary, the pair is cointegrated.  
+
+⚠️ Catch: OLS picks the β that makes the residuals as small and tame as possible, so they look more stationary than they really are. That means you can’t use the normal ADF critical value (≈ −2.86 at 5%). You need the stricter MacKinnon value (≈ −3.34 for 2 series). statsmodels.coint() handles this for you.  
+
+Trading the spread. Standardize the spread: `z = (s − mean) / sd`  
+- `z > +2`: the spread is “rich” → short y, long β·x  
+- `z < −2`: the spread is “cheap” → long y, short β·x  
+- Exit near z ≈ 0. The half-life (Day 17) tells you roughly how long to wait.  
+
+### What to look for  
+- GLD/IAU should be strongly cointegrated: tiny p-value, half-life of just a few days, and it should pass out-of-sample. That’s the “real thing.”  
+- KO/PEP and XOM/CVX: are they cointegrated in-sample? Does it hold out of sample? Also compare the train-period half-life with your trading horizon.  
+- SPY/QQQ: very high return correlation, but probably not cointegrated. That’s correlation ≠ cointegration, live.  
+- If |z today| is large for a pair that failed OOS, that’s not an opportunity. It’s the relationship breaking.  
+- Bonus: swap y and x for KO/PEP. Engle-Granger results can change with the ordering, which is one known weakness of the test.  
+
+### Quiz  
+1. AAPL and MSFT have a daily return correlation of 0.75. Does that mean they’re cointegrated? Explain.  
+2. Hedge ratio β = 1.5 on log prices. Training spread: mean 0, sd 0.04. Today the spread is −0.10. What’s z, and what trade does it signal? If the half-life is 20 days, roughly what spread would you expect 20 days from now?  
+3. Your Engle-Granger residuals give an ADF t-stat of −3.0. Using the standard ADF table (5% crit −2.86) you’d say “stationary.” Why is that wrong, and what’s the right conclusion?  
+
+### Answers  
+1. No. Correlation measures whether daily returns move together. Cointegration requires the price levels to stay bound by a stationary spread. Highly correlated stocks can still drift apart permanently (e.g. one compounds 2%/yr faster). You’d have to run Engle-Granger to find out.
+2. z = −0.10 / 0.04 = −2.5. The spread is cheap, so go long y, short 1.5×x (in dollar terms). One half-life closes half the gap, so the expected spread is about −0.05 (z ≈ −1.25). That’s an expectation, not a guarantee.
+3. OLS chose β to make the residuals look as stationary as possible, so the plain ADF table is too lenient. The Engle-Granger (MacKinnon) 5% critical value for 2 series is about −3.34. Since −3.0 > −3.34, you fail to reject “no cointegration.” Not a tradable pair on this evidence.
