@@ -778,3 +778,50 @@ Total wall time should be far less than 5 × one worker’s time.
 1. The first exception propagates out of await gather(...) right away, and you get no list of results, so even the finished ones are lost unless you stored them elsewhere. The other tasks are not cancelled (they keep running and using your quota) unless the outer task gets cancelled. return_exceptions=True gives you all 20 outcomes as values.  
 2. (a) Yes: timeouts are usually transient. (b) No: that’s permanent bad input, and retrying just burns usage, so fail fast and report it. (c) Maybe once, with a change (a higher max_turns or a clearer prompt). Retrying unchanged usually hits the same wall.  
 3. Context bloat: the synthesizer’s window fills with 16k words of mostly-redundant prose, which costs more and reasons worse. Fix: make workers return compressed, structured output (a schema with key findings plus sources), merge mechanically in Python where you can, and give the synthesizer only the distilled facts.  
+
+## Day 19: Routing and handoffs between specialized agents  
+One agent with every tool and huge prompt gets slow, expensive and confused.  
+With routing, each request goes to a small, focused specialist on the cheapest model that can do the job.  
+With handoffs, specialist can pass the user along when the request turns out to be outside its role.  
+
+### Concept  
+Routing happens once, up front. A cheap classifier picks a destination.  
+```
+user msg ─► ROUTER (haiku, no tools, JSON out)
+              │ {"route":"quant","confidence":0.9}
+     ┌────────┼─────────┐
+   quant    coder    general
+```
+Handoff happens mid-conversation, when the current agent decides *this isn't mine*.  
+```
+quant ──handoff(to="coder", summary=…)──► coder
+```
+
+How this differs from Day 16 (orchestrator–worker):  
+- Orchestrator: the lead keeps control, delegates subtasks, then combines the results.  
+- Router/handoff: control moves. Whoever has the task now owns the reply.  
+
+Design rules that matter in production:  
+1. Make the router output structured. Use an enum of routes plus a confidence score, not free text you have to regex.  
+2. Use a fallback route. When confidence is low, send the request to a safe generalist (or ask the user to clarify) rather than guessing.  
+3. Make handoff a tool, and let your code do the transfer. The model only requests a handoff. Your Python decides whether to allow it. That’s where you enforce limits.  
+4. Make the handoff summary self-contained. The next agent sees only what you pass it. This is the same context isolation as Day 17.  
+5. Bound it. Cap the number of handoffs and block A→B→A ping-pong.  
+6. Give each specialist only its own tools. The coder can’t fetch prices, so it has to hand off instead of making numbers up.  
+
+### What to look for
+
+- ROUTER: prints a JSON dict, probably quant because the price comes first.  
+- The quant agent calls get_price, answers the price part, then calls handoff(to="coder", …).  
+- Read the summary. Does it include “NVDA = 141.2” so the coder could use it? That’s the quality of your handoff.  
+- The final line should be PATH: quant -> coder.  
+
+### Quiz  
+1. Your router sends 30% of requests to the wrong specialist, but they hand off correctly afterwards. What does that misrouting cost you, and where would you fix it first?
+2. Why does the handoff tool only record the request instead of calling the next agent itself from inside its handler?
+3. A support bot routes to “billing” or “tech”. A user writes: “My card was charged twice after the app crashed.” Give two reasonable ways to handle it, and say which you’d pick.
+
+### Answers  
+1. Every misroute costs at least one extra specialist run (more tokens and latency) plus a handoff summary, which can lose detail. Fix the router first: sharpen the route descriptions, add a few labelled examples, and log confidence so you can set the fallback threshold from real data. Day 22 evals will help here.
+2. It keeps control in your code. There you can enforce limits (max handoffs, no ping-pong), log the transfer, pick the next agent’s model, tools and permissions, and avoid nested agent calls blowing up cost. The model proposes, your program decides. The same idea as Day 13’s guardrails.
+3. (a) Route to a primary owner (billing, since money is the user’s main concern) and let it hand off to tech for the crash. (b) Fan out to both in parallel (Day 18) and have a combiner merge the replies. (a) is cheaper and simpler and gives one clear owner. Choose (b) only when both parts are equally urgent and independent.
