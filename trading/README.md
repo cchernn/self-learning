@@ -705,4 +705,54 @@ Trading the spread. Standardize the spread: `z = (s − mean) / sd`
 ### Answers  
 1. No. Correlation measures whether daily returns move together. Cointegration requires the price levels to stay bound by a stationary spread. Highly correlated stocks can still drift apart permanently (e.g. one compounds 2%/yr faster). You’d have to run Engle-Granger to find out.
 2. z = −0.10 / 0.04 = −2.5. The spread is cheap, so go long y, short 1.5×x (in dollar terms). One half-life closes half the gap, so the expected spread is about −0.05 (z ≈ −1.25). That’s an expectation, not a guarantee.
-3. OLS chose β to make the residuals look as stationary as possible, so the plain ADF table is too lenient. The Engle-Granger (MacKinnon) 5% critical value for 2 series is about −3.34. Since −3.0 > −3.34, you fail to reject “no cointegration.” Not a tradable pair on this evidence.
+3. OLS chose β to make the residuals look as stationary as possible, so the plain ADF table is too lenient. The Engle-Granger (MacKinnon) 5% critical value for 2 series is about −3.34. Since −3.0 > −3.34, you fail to reject “no cointegration.” Not a tradable pair on this evidence.  
+
+## Day 19: Performance Metrics - Sharpe, Sortino, Calmar (and annualization pitfalls)  
+
+### Concepts:  
+1. **Sharpe Ratio**: excess return per unit of total volatility  
+```
+SR = mean(r − rf) / std(r − rf)  
+```
+Annualize: `SR_ann = SR_daily × √252` (monthly: × √12)  
+
+2. Sortino ratio: only penalizes downside volatility  
+```
+Sortino = mean(r − T) / DD, where DD = √( mean( min(r − T, 0)² ) )
+```
+⚠️ The mean is over all N days (up days count as 0). A common bug is taking the std of only the negative days, which inflates Sortino.
+
+3. Calmar ratio: return per unit of worst pain  
+```
+Calmar = CAGR / |MaxDD|
+```
+
+4. Sharpe has error bars (Lo, 2002, assuming iid returns):
+```
+SE(SR_daily) ≈ √( (1 + ½·SR_daily²) / N )
+``` 
+then × √252 to annualize.  
+
+Annualization pitfalls
+
+- √T scaling assumes iid returns. With positive autocorrelation (stale prices, smoothed NAVs, slow-reacting signals), daily vol looks too low and √252 overstates Sharpe. A quick check: compare Sharpe from daily returns with Sharpe from monthly returns. They should be roughly equal.  
+- Mixing frequencies. Don’t put an annual rf next to a daily mean. Convert it: rf_d = (1+rf)^(1/252) − 1.  
+- Calmar depends on the window. Longer samples have more chances for a deep drawdown, so Calmar from a 2-year backtest isn’t comparable to Calmar from a 15-year one.  
+- Trading days. Use 252 for stocks. Crypto trades 365 days a year.  
+
+### What to look for
+
+- The SR_lo95 column: for how many tickers does the 95% interval still include 0, even after 10 years of data?  
+- Sortino_WRONG vs Sortino: the buggy version is consistently higher.  
+- Rankings change: does the best ticker by Sharpe also win on Calmar? (TLT’s 2022 drawdown should stand out.)  
+- Smoothing demo: the smoothed series’ daily Sharpe jumps roughly 1.4× (daily vol shrinks by about √0.5), while its monthly Sharpe barely moves. Same returns, a fake improvement in Sharpe.  
+
+### Quiz  
+1. A strategy’s Sharpe computed on monthly returns is 0.30. What’s the annualized Sharpe?  
+2. A backtest shows an annualized Sharpe of 2.5 from daily returns, but only 1.2 from monthly returns. What’s the most likely explanation, and which number do you trust?  
+3. Strategy X: Calmar 1.5 over 2 years. Strategy Y: Calmar 0.6 over 15 years. Is X clearly better? Why or why not?  
+
+### Answers  
+1. 0.30 × √12 ≈ 1.04.  
+2. Positive autocorrelation in daily returns (stale prices, smoothing, or a slow-moving signal) makes daily vol look too small, so √252 overstates the Sharpe. Trust the monthly figure, or one adjusted for autocorrelation (Lo’s adjustment).  
+3. No. Max drawdown tends to get deeper the longer you sample, so a 2-year Calmar is flattering by construction. Compare them on the same window length, for example rolling 2-year Calmar for Y, and remember that 2 years gives a very noisy estimate anyway.  
