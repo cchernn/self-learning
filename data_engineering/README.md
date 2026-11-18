@@ -145,3 +145,10 @@ Using the data your `ingest.py` pulls:
 2. Pick 1 fact table and at least 3 dimensions, including dim_date. List each table’s columns, with surrogate keys on the dimensions.  
 3. Write the CREATE TABLE statements and run them in the Postgres you started in Docker this week.  
 4. Insert 5 or more hand-made rows, then run one query that joins the fact table to two dimensions with a GROUP BY.  
+
+## Day 19: Tooling + modeling  
+
+### Tasks  
+1. Write a docker-compose.yml with a postgres:16 service that has a named volume, a pg_isready healthcheck, and port 5432 mapped. Add a second service, pgadmin or adminer.
+2. Write load.py to read your Parquet file from ingest.py and write it into a raw_* table with pandas + SQLAlchemy.
+3. Break things on purpose, then fix them: stop and restart with docker compose down and with down -v, change the host port to one that’s already in use, and run load.py before the database is healthy.  
