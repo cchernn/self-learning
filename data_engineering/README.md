@@ -155,6 +155,14 @@ Using the data your `ingest.py` pulls:
 
 ## Day 20: Tooling + modeling  
 
+### Tasks  
+1. Write docker-compose.yml with a postgres:16 service: env vars for user/password/db, port 5432, a named volume, and ./sql mounted to /docker-entrypoint-initdb.d/.  
+2. In sql/01_schema.sql, create raw_* (data as it landed), 2–3 dim_* tables and one fact_* table, with PK/FK constraints.  
+3. Write load.py. It reads your Week 2 Parquet into raw_* (pandas + SQLAlchemy to_sql), then runs INSERT … SELECT to fill the dims and then the fact.  
+4. Finish line: after docker compose down -v && docker compose up -d && python load.py, a join from fact to every dim returns rows. Commit it.  
+
+## Day 21: Tooling + modeling  
+
 A **star schema** has one central **fact table** and several **dimension tables** around it. Each row in fact table is one measureable event at a stated grain, holding numeric measures plus foreign keys. Dimension tables hold the descriptive "who/what/when/where" attributes you filter and group by.  
 
 ### Tasks  
