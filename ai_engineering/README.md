@@ -824,4 +824,42 @@ Design rules that matter in production:
 ### Answers  
 1. Every misroute costs at least one extra specialist run (more tokens and latency) plus a handoff summary, which can lose detail. Fix the router first: sharpen the route descriptions, add a few labelled examples, and log confidence so you can set the fallback threshold from real data. Day 22 evals will help here.
 2. It keeps control in your code. There you can enforce limits (max handoffs, no ping-pong), log the transfer, pick the next agent’s model, tools and permissions, and avoid nested agent calls blowing up cost. The model proposes, your program decides. The same idea as Day 13’s guardrails.
-3. (a) Route to a primary owner (billing, since money is the user’s main concern) and let it hand off to tech for the crash. (b) Fan out to both in parallel (Day 18) and have a combiner merge the replies. (a) is cheaper and simpler and gives one clear owner. Choose (b) only when both parts are equally urgent and independent.
+3. (a) Route to a primary owner (billing, since money is the user’s main concern) and let it hand off to tech for the crash. (b) Fan out to both in parallel (Day 18) and have a combiner merge the replies. (a) is cheaper and simpler and gives one clear owner. Choose (b) only when both parts are equally urgent and independent.  
+
+## Day 20: Evaluator - optimizer (critic) loops and self-verification  
+
+### Concept  
+```
+ task ──► GENERATOR ──► output
+             ▲             │
+             │      ┌──────▼───────┐
+   feedback  │      │ 1. hard check │  tests, schema, linter, backtest
+  (specific) │      │ 2. LLM critic │  only what code can't check
+             └──────┤  verdict?     │
+                    └──────┬───────┘
+                   accept / max rounds ──► done
+```  
+Rules that make it work:  
+- Use a deterministic check first. Tests, type checks, JSON validation and “does the backtest run” are free to run, never wrong and can’t be talked out of a result. Only call the LLM critic once the hard checks pass.  
+- Make the critic answer in a fixed format. Have it return {"verdict": "accept" | "revise", "issues": [...]} using output_format (JSON Schema), not free prose, so your loop can branch on the verdict.  
+- Give the critic a narrow job. “Find anything wrong” makes it invent problems forever. Tell it what’s already verified and which issues actually matter.  
+- Feedback must say what to fix. Send back the exact failing case or the reviewer’s note, not “try again”.  
+- Always set a stopping point. Use MAX_ROUNDS and return the best version so far. Critics rarely say “perfect” on their own.  
+- Use a different model or prompt for the critic. A model checking its own output with the same prompt tends to approve it. A fresh context, a different role, or a stronger model works better.  
+
+Self-verification is the same idea inside one agent: give it a tool like run_tests and instruct “verify before finishing”. That suits coding agents. A separate loop like today’s gives you control over cost and when to stop.  
+
+### What to look for  
+- Usually Round 1 passes the tests. Then Sonnet either accepts or asks for something like NaN handling, and Round 2 fixes it.  
+- The cost line for each call shows the critic is the expensive step. That’s why it only runs after the tests pass. (On your subscription the dollar figure is an estimate, not a charge.)  
+- I ran the test harness here with a correct version, a version that always returns 0.0, and an infinite loop. It returned ALL PASS, then three specific failure messages, then the timeout message. The model calls weren’t run here, so that part is untested.  
+
+### Quiz  
+1. Your critic is the same model as the generator, with the same system prompt and the generator’s conversation history. Why is this a weak design, and what’s the cheapest fix?  
+2. You’re asking an agent to write a new trading signal function. Name two checks you could run before any LLM critic.  
+3. The loop keeps going back and forth: round 2 fixes issue A, round 3 brings it back. What’s happening, and name two changes that would help.  
+
+### Answers  
+1. The critic shares the generator’s context and blind spots, so it tends to approve its own reasoning (“self-preference”). Cheapest fix: a fresh query() with no history and a separate reviewer system prompt. Using a stronger model (sonnet or opus) as the critic helps further.  
+2. Any two of these: unit tests on hand-computed cases; checking there’s no lookahead (the signal at time t must not change when you add data after t); output shape and dtype checks (same index as the input, NaN only in the warm-up period); a timeout or performance test on a large series; a tiny backtest that runs end to end.  
+3. The generator only sees the latest feedback, so it forgets earlier fixes, or the critic’s demands conflict. Fixes: pass all accumulated feedback (or a running list of constraints) into each round; turn fixed issues into hard tests so they can’t come back; narrow the critic’s scope; keep the best-scoring version and stop on no improvement rather than looping until MAX_ROUNDS.  
