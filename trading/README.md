@@ -812,3 +812,41 @@ weight_t = σ_target / σ̂_t, where σ̂_t is forecast from past data only.
     - Even with a perfect model, full Kelly gives a 50% chance of a 50% drawdown.  
     - Borrowing costs lower μ.  
     - The parameters change over time, as the yearly table shows.  
+
+## Day 21: Trading Costs (spread, slippage, market impact)  
+
+Most backtests that look great die because of costs.  
+
+### Concept  
+1. **Bid-ask spread**. You buy at ask and sell at bid. The fair price is the **mid**:  
+- mid = (bid + ask) / 2  
+- relative spread (bps) = (ask - bid) / mid * 10000  
+- each side costs about **half the spread**. A full round trip costs about **one full spread**.  
+
+2. Effective spread (what you actually paid, after any price improvement):  
+```
+eff spread = 2 × |fill price − mid| / mid
+```  
+3. Slippage. The gap between the price your backtest assumed (e.g. the bar close) and your real fill. It comes from delay, price moving, and the spread itself.  
+
+4. Market impact. Big orders push the price against you. A common rule of thumb is the square-root law:  
+- `impact ≈ Y × σ_daily × √(Q / ADV), with Y ≈ 1`   
+- Q = your shares, ADV = average daily volume. Impact grows with the square root of size, so your total dollar cost grows faster than your order size.  
+
+### What to look for  
+
+- SPY/QQQ spreads are tiny, often under 0.5 bps (1 cent on a ~$600 price). PLUG’s should be many times wider.  
+- Effective spread is usually below the quoted spread. That’s price improvement and midpoint fills.  
+- impact_1M: tiny for SPY (a fraction of a bp) and much larger for PLUG. For small caps, impact, not the spread, sets your capacity limit.  
+- The drag table: daily trading in a small cap can cost tens of % a year. Monthly trading in SPY costs almost nothing.  
+
+### Quiz  
+1. Bid 50.00, ask 50.10. What’s the relative spread in bps, and roughly what does one round trip cost?  
+2. A strategy grosses 12%/yr with 100 round trips/yr, costing 8 bps each. What’s the net return, roughly?  
+3. Under the square-root law, if you 4× your order size, what happens to (a) impact per share and (b) total impact cost in dollars?  
+
+### Answers  
+1. mid = 50.05 → 0.10/50.05 ≈ 20 bps. A round trip costs about one full spread, so about 20 bps (0.20%).  
+2. 100 × 8 bps = 800 bps = 8% → net ≈ 12% − 8% = 4%. Two-thirds of the edge goes to costs.  
+3. (a) √4 = 2× per share. (b) 4× the shares × 2× per share = 8× the dollars. That’s why size kills strategies.  
+
