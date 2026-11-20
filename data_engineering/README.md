@@ -152,3 +152,13 @@ Using the data your `ingest.py` pulls:
 1. Write a docker-compose.yml with a postgres:16 service that has a named volume, a pg_isready healthcheck, and port 5432 mapped. Add a second service, pgadmin or adminer.
 2. Write load.py to read your Parquet file from ingest.py and write it into a raw_* table with pandas + SQLAlchemy.
 3. Break things on purpose, then fix them: stop and restart with docker compose down and with down -v, change the host port to one that’s already in use, and run load.py before the database is healthy.  
+
+## Day 20: Tooling + modeling  
+
+A **star schema** has one central **fact table** and several **dimension tables** around it. Each row in fact table is one measureable event at a stated grain, holding numeric measures plus foreign keys. Dimension tables hold the descriptive "who/what/when/where" attributes you filter and group by.  
+
+### Tasks  
+1. Run docker compose down -v, then docker compose up -d and your load script, and time how long the rebuild takes from scratch.  
+2. Export your star schema diagram (dbdiagram.io, draw.io or Mermaid) to the repo, with the grain written on it.  
+3. Write a README note covering what you built, the run steps, what broke and what you learned.  
+4. Commit, push, and tick “Week 3” in the plan’s progress checklist. ✅ You’re done when a fresh git clone plus the README steps gives you loaded tables in under 15 minutes.  
