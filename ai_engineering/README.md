@@ -863,3 +863,50 @@ Self-verification is the same idea inside one agent: give it a tool like run_tes
 1. The critic shares the generator’s context and blind spots, so it tends to approve its own reasoning (“self-preference”). Cheapest fix: a fresh query() with no history and a separate reviewer system prompt. Using a stronger model (sonnet or opus) as the critic helps further.  
 2. Any two of these: unit tests on hand-computed cases; checking there’s no lookahead (the signal at time t must not change when you add data after t); output shape and dtype checks (same index as the input, NaN only in the warm-up period); a timeout or performance test on a large series; a tiny backtest that runs end to end.  
 3. The generator only sees the latest feedback, so it forgets earlier fixes, or the critic’s demands conflict. Fixes: pass all accumulated feedback (or a running list of constraints) into each round; turn fixed issues into hard tests so they can’t come back; narrow the critic’s scope; keep the best-scoring version and stop on no improvement rather than looping until MAX_ROUNDS.  
+
+## Day 21: Mini-project - Multi-agent research orchestrator  
+
+Decompose (Day 16), Isolate Context (Day 17), Fan out with asyncio (Day 18) and critique (Day 20)  
+
+### The architecture  
+```
+question
+   │
+[LEAD / planner]  sonnet, no tools
+   │  JSON: up to 3 sub-questions
+   ├──────────┬──────────┐
+[searcher 0][searcher 1][searcher 2]   haiku + WebSearch
+   │  ≤120-word notes + URLs (compressed)
+   └──────────┴──────────┘
+   │  asyncio.gather(return_exceptions=True)
+[SYNTHESIZER]  sonnet, no tools
+   │
+answer + citations + "Gaps" line
+```  
+
+Design choices to notice:  
+- **Code orchestrates and the model plans**. The lead only returns a plan. Python handles the fan-out, so the fan-out is deterministic, capped and parallel. Compare Day 16, where the lead delegated by itself through agents=. That’s more flexible but harder to control.  
+- **Structured hand-off**. The planner uses output_format (a JSON schema), so you read ResultMessage.structured_output instead of regex-parsing prose.  
+- **Model tiering**. Cheap haiku workers do the many search calls. Sonnet handles the two steps that need judgement.  
+- **Compression at the boundary**. Each worker can read thousands of tokens of search results but may only return 120 words. The synthesizer’s context stays small.  
+- **Partial failure is normal**. A timed-out worker becomes a “Gaps” line in the answer, and the run still finishes.  
+- **Untrusted data**. Web notes are labelled as data, not instructions.  
+
+### What to look for:  
+
+- The PLAN lists 2–3 sub-questions that don’t overlap.  
+- The “worker i done” lines finish close together and out of order. That’s the parallelism. Total wall time should be about the slowest worker, not the sum of all three.  
+- The answer cites URLs and ends with a Gaps line.  
+- The cost line shows dollar figures. On a subscription these are notional, but they’re a good guide to how much of your limit each stage uses.  
+The full run is about 5 agent sessions, so run it once or twice, not in a loop.  
+
+### Quiz  
+1. Today the lead only plans, and Python does the fan-out. Day 16 instead let the lead delegate itself through agents=. Give one advantage of each approach.  
+2. A worker comes back with 2,000 words and no URLs. Where in the pipeline should you catch this, and what’s the cheapest fix?  
+3. Your question is simple: “What’s Maybank’s current dividend yield?” Should this pipeline run at all? What would you do instead, and why?  
+
+### Answers  
+1. Code-driven fan-out gives deterministic parallelism, a hard worker cap, per-worker timeouts and predictable cost, and it’s easy to test. agents= delegation is adaptive. The lead can decide how many workers to spawn, look at a result and spawn a follow-up, or skip delegating entirely. You trade control for flexibility.  
+2. Catch it at the boundary, in search(), before anything reaches the synthesizer. A cheap check in code (word count over the limit, no http in the text) can retry once with a firmer instruction or truncate the output. Plain Python checks cost nothing. A model judge costs a call.  
+3. No. It’s one fact that needs one search, so a single agent with WebSearch (Day 7) is faster and much cheaper. Three workers plus a planner and a synthesizer is roughly 5× the usage with extra latency and no benefit (Day 15). Use multiple agents when sub-tasks are independent and broad.  
+
