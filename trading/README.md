@@ -756,3 +756,59 @@ Annualization pitfalls
 1. 0.30 × √12 ≈ 1.04.  
 2. Positive autocorrelation in daily returns (stale prices, smoothing, or a slow-moving signal) makes daily vol look too small, so √252 overstates the Sharpe. Trust the monthly figure, or one adjusted for autocorrelation (Lo’s adjustment).  
 3. No. Max drawdown tends to get deeper the longer you sample, so a 2-year Calmar is flattering by construction. Compare them on the same window length, for example rolling 2-year Calmar for Y, and remember that 2 years gives a very noisy estimate anyway.  
+
+## Day 20: Position Sizing - Kelly Criterion & Volatility Targeting  
+
+A strategy with real edge can still blow up if you bet too big, and it wastes its edge if you bet too small. Sizing decides *how much* you hold, which affects long-run outcome as much as *what* you hold.  
+Kelly gives the theoretical maximum-growth bet.  
+Volatility targeting is the practical tool most systematic funds actually use.  
+
+### Concept  
+1. Discrete Kelly (a repeated bet)  
+Win probability `p`, payoff `b-to-1`, loss probability `q = 1−p`:  
+```
+f* = p − q/b
+```  
+
+2. Continuous Kelly (for trading)  
+For a strategy with annual excess return μ and volatility σ, the long-run log growth rate when you hold leverage f is:  
+```
+g(f) = f·μ − ½·f²·σ²
+```  
+Growth is maximized at f* = μ / σ², where it reaches g* = μ² / (2σ²).  
+
+The growth curve is a parabola, and it is asymmetric in practice: betting too little costs you a little growth, while betting too much can cost you everything.
+
+3. Why traders use fractional Kelly  
+- μ is estimated very poorly. Remember the t-stats from Day 11. If you overestimate μ by 2×, “full Kelly” is really 2× Kelly, which means zero growth.  
+- Full Kelly hurts. Even when the model is exactly right, the chance that you ever fall to x% of your starting wealth is x. So you have a 50% chance of halving at some point.  
+- Fat tails and gaps (Day 7) break the smooth math. At 4× leverage, a −25% day wipes you out.  
+Most practitioners use ¼ to ½ Kelly.  
+
+4. Volatility targeting  
+Scale your position so its expected risk stays constant:  
+```
+weight_t = σ_target / σ̂_t, where σ̂_t is forecast from past data only.
+```  
+
+### What to look for:
+
+- f* for SPY will probably come out around 3–4×. The growth table should peak near f*, fall back toward 0 around 2×f*, and hit −inf once one bad day (March 2020) takes you below zero.
+- Year-by-year f* will swing wildly, including large negative values in 2018 and 2022. That’s why you can’t trust a point estimate.
+- Half Kelly looks great, but it used f* computed from the future, so it’s look-ahead bias.
+- Vol targeting should land close to its 10% vol target, with a much smaller max drawdown than buy & hold and a similar or better Sharpe. Note that it is built honestly, using only past data.
+
+### Quiz  
+1. A bet wins with probability 60% at even odds. What is the Kelly fraction?  
+2. A strategy has μ = 6% and σ = 15%. What is f*? At half Kelly, what fraction of the maximum growth rate do you get?  
+3. You estimate f* = 4 from 10 years of SPY. Give two reasons not to run 4× leverage.  
+
+### Answers  
+1. f* = 0.60 − 0.40/1 = 0.20 (20%).  
+2. f* = 0.06 / 0.0225 ≈ 2.67×. Half Kelly gives 75% of max growth: g(f*/2) = ¾·g*, and this holds for any μ and σ.  
+3. Any two of these:  
+    - μ has a huge standard error, so the true f* could be much lower, and overbetting is what kills you.  
+    - Fat tails and overnight gaps: a −25% day at 4× wipes you out.  
+    - Even with a perfect model, full Kelly gives a 50% chance of a 50% drawdown.  
+    - Borrowing costs lower μ.  
+    - The parameters change over time, as the yearly table shows.  
