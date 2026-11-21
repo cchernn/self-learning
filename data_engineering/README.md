@@ -170,3 +170,14 @@ A **star schema** has one central **fact table** and several **dimension tables*
 2. Export your star schema diagram (dbdiagram.io, draw.io or Mermaid) to the repo, with the grain written on it.  
 3. Write a README note covering what you built, the run steps, what broke and what you learned.  
 4. Commit, push, and tick “Week 3” in the plan’s progress checklist. ✅ You’re done when a fresh git clone plus the README steps gives you loaded tables in under 15 minutes.  
+
+## Day 22: Cloud warehouse  
+Understand ETL vs ELT  
+ETL because old warehouses had expensive storage and compute.  
+ELT because transformation happen inside the warehouse, with cheap columnar storage and elastic compute, raw data stays untouched for re-transformation whenever business logic changes.  
+
+### Tasks  
+Take parquet output from `ingest.py` and build it both ways in DuckDB  
+1. **ETL**: clean data in pandas (rename columns, cast types, drop nulls) then load it as `etl_clean`.  
+2. **ELT**: load parquet file into `raw_data`, then write one SQL `CREATE TABLE elt_clean AS SELECT ...` that does the same cleaning  
+
