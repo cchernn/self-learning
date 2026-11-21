@@ -850,3 +850,37 @@ eff spread = 2 × |fill price − mid| / mid
 2. 100 × 8 bps = 800 bps = 8% → net ≈ 12% − 8% = 4%. Two-thirds of the edge goes to costs.  
 3. (a) √4 = 2× per share. (b) 4× the shares × 2× per share = 8× the dollars. That’s why size kills strategies.  
 
+## Day 22: Portfolio Theory - Diversification, Mean-Variance, and Why Estimates are Unstable  
+
+### Concept  
+1. Portfolio variance (two assets)  
+```
+σ²ₚ = w₁²σ₁² + w₂²σ₂² + 2·w₁w₂·ρ·σ₁σ₂
+```  
+2. N equal-weighted assets (same σ, same average correlation ρ):  
+```
+σ²ₚ = σ²/N + (1 − 1/N)·ρ·σ²
+```  
+As N → ∞, σₚ → σ·√ρ. With σ = 20% and ρ = 0.3, the floor is about 11%. Adding more assets can't take you below it, because correlation is the risk that can't be diversified away.  
+3. Mean-variance optimization (Markowitz)  
+Pick weights w to:  
+- Min-variance: minimize wᵀΣw subject to Σw = 1  
+- Max-Sharpe (tangency): maximize (wᵀμ − r_f) / √(wᵀΣw)  
+
+4. Why estimates are unstable  
+The optimizer treats μ and Σ as known. They aren't. The standard error of an annual mean return is about σ/√T. With 20% vol and 10 years of data, that's 20%/√10 ≈ 6.3%, which is bigger than most of the return gaps between assets. The optimizer piles into whichever asset happened to have a lucky sample, which is why it's called an "error maximizer". Σ is estimated much better than μ. That's why min-variance (which ignores μ) tends to hold up better out of sample than max-Sharpe.  
+
+### What to look for:  
+- In part 1, the equal-weight vol should come in well below the average individual vol. TLT and GLD will have low or negative correlation with equities, and that's where most of the benefit comes from.  
+- In part 3, max-Sharpe weights can swing from 0 to large allocations across resamples. A std of 0.2–0.3 on a weight means the "optimal" portfolio is mostly noise.  
+- In part 4, check whether in-sample max-Sharpe actually beats equal weight out of sample. It often doesn't, while min-variance usually delivers its low vol as promised. (2022, when stocks and bonds fell together, is in the test half, so watch TLT.)  
+
+### Quiz  
+1. Two assets, each with 30% vol and correlation −1, held 50/50. What is the portfolio vol?  
+2. 20 assets, equal-weighted, each with 25% vol and average pairwise correlation 0.5. What's the portfolio vol? What's the floor as N → ∞?  
+3. Why does min-variance usually generalize better out of sample than max-Sharpe?  
+
+### Answers  
+1. 0%. σ²ₚ = 0.25·0.09 + 0.25·0.09 − 2·0.25·0.09 = 0. With ρ = −1, the two assets cancel each other exactly.  
+2. σ²ₚ = 0.0625/20 + 0.95·0.5·0.0625 = 0.0328 → ≈18.1%. Floor = 25%·√0.5 ≈ 17.7%. At ρ = 0.5 you've already captured almost all of the diversification there is.  
+3. Min-variance only needs Σ, which can be estimated fairly precisely. Max-Sharpe also needs μ, whose estimation error (≈σ/√T, about 6% a year even with 10 years of data) swamps the real differences between assets. The optimizer then overweights whichever assets got lucky in the sample.  
