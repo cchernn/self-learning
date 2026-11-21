@@ -910,3 +910,45 @@ The full run is about 5 agent sessions, so run it once or twice, not in a loop.
 2. Catch it at the boundary, in search(), before anything reaches the synthesizer. A cheap check in code (word count over the limit, no http in the text) can retry once with a firmer instruction or truncate the output. Plain Python checks cost nothing. A model judge costs a call.  
 3. No. It’s one fact that needs one search, so a single agent with WebSearch (Day 7) is faster and much cheaper. Three workers plus a planner and a synthesizer is roughly 5× the usage with extra latency and no benefit (Day 15). Use multiple agents when sub-tasks are independent and broad.  
 
+## Day 22: Evals for agents  
+
+### Concept  
+```
+task suite ──► run agent (k trials each) ──► graders ──► pass rates
+ (inputs +      captures: final text,         outcome?    per task,
+  ground truth)  tool calls, turns, cost      trajectory?  overall
+```  
+1. **Task suite**. Use 10-50 realistic tasks, each with a known right answer. Work out the ground truth from the data in code, so it can't drift from the data. Include *negative tasks* too, where the right move is to *not do something*.  
+2. Outcome vs trajectory grading  
+- Outcome: is the end result right? (the number, the file, the state change). This is the one that matters most.  
+- Trajectory: did it get there in an acceptable way? Did it use the data tool rather than guess? Did it avoid forbidden tools? Did it stay under N turns?  
+- Grade trajectories loosely. Check "must call X" and "must never call Y". Don't require an exact call sequence, because many valid paths exist and strict sequence checks punish good agents.  
+3. Graders, cheapest first  
+- Code graders (regex, numeric tolerance, set checks) are fast, free and deterministic. Use them wherever you can. Asking for a fixed output format (ANSWER: 123) makes this possible.  
+- LLM-as-judge is for fuzzy quality ("is this summary faithful?"). Pitfalls:  
+   - judges favour long, confident answers  
+   - judges favour their own model family  
+   - grades vary from run to run  
+   - judges miss factual errors unless you give them the reference answer  
+   
+   Fixes: give the judge a rubric plus the reference answer, ask for pass/fail rather than a 1–10 score, and spot-check its verdicts by hand.  
+
+**Non-determinism**: run each task k times. Report the pass rate (e.g. 2/3), not one lucky run. For production paths, care about "passes every time", not "passed once".  
+
+### What to look for:  
+- Each trial prints its four grade flags, the turn count and the tool list.  
+- Expected answers are 5870 (total value), −480 (worst P&L, TSLA) and −480 (TSLA loss).  
+- Watch whether haiku calls get_price for all three symbols, ideally in parallel within one turn (Day 4).  
+- `ORDERS` should stay empty.  
+- Tip: test graders offline first, e.g. grade(TASKS[2], "ANSWER: -480", ["get_price"]). That costs nothing.  
+
+### Quiz  
+1. Your agent's final answer is correct, but the trajectory shows it never called get_price. It just "knew" a plausible price. Pass or fail, and why?  
+2. Why is "the agent must call get_positions, then get_price(AAPL), then get_price(MSFT)…" a bad trajectory check?  
+3. You use sonnet as an LLM judge to grade sonnet's research summaries on a 1–10 scale, with no reference answer. Name two problems and one fix for each.  
+
+### Answers  
+1. Fail. The right number came from luck or memory, not live data, so it'll be wrong tomorrow when prices move. This is exactly what trajectory checks are for: outcome alone can hide a broken process. (With fixed mock data, you can also catch it by changing PRICES between runs.)  
+2. It's brittle. Parallel calls, a different order or a harmless extra call are all valid but would fail it. Check what must happen ("must call", "never call", "≤ N turns"), not one exact path.  
+3. (a) Self-preference / leniency bias: use a different model as judge, or give it a reference answer and a strict rubric. (b) 1–10 scores are noisy and drift: use pass/fail per rubric item. (c) No reference means it can't catch factual errors: supply ground-truth facts, and spot-check a sample of verdicts by hand.  
+
