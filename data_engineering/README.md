@@ -181,3 +181,13 @@ Take parquet output from `ingest.py` and build it both ways in DuckDB
 1. **ETL**: clean data in pandas (rename columns, cast types, drop nulls) then load it as `etl_clean`.  
 2. **ELT**: load parquet file into `raw_data`, then write one SQL `CREATE TABLE elt_clean AS SELECT ...` that does the same cleaning  
 
+## Day 23: Cloud warehouse  
+A row store (Postgres, CSV) keeps each record together, which suits fecthing or updating one order at a time (OLTP). A column store (BigQuery, Snowflake, DuckDB, Parquet files) keeps each column together, so `SELECT AVG(fare) FROM trips` reads only the `fare` column and skips the rest. Columns hold values of one type, often repeated, so they compress very well. Parquet also keeps min/max stats per row group, which lets engines skip whole chunks of a file.  
+
+### Tasks  
+1. pip install duckdb and download one month of NYC TLC yellow taxi data (Parquet).  
+2. In DuckDB, export it to CSV with COPY ... TO 'trips.csv'. Compare the two file sizes.  
+3. Time SELECT AVG(fare_amount) FROM '<file>' and SELECT * FROM '<file>' LIMIT 1000000 on both files (.timer on).  
+4. Run SELECT * FROM parquet_metadata('trips.parquet') and find the row groups, compression codec and min/max stats.  
+Done when: you have a 4-line table (size, aggregate time, full-scan time, compression) in week4/notes.md.  
+
