@@ -884,3 +884,49 @@ The optimizer treats μ and Σ as known. They aren't. The standard error of an a
 1. 0%. σ²ₚ = 0.25·0.09 + 0.25·0.09 − 2·0.25·0.09 = 0. With ρ = −1, the two assets cancel each other exactly.  
 2. σ²ₚ = 0.0625/20 + 0.95·0.5·0.0625 = 0.0328 → ≈18.1%. Floor = 25%·√0.5 ≈ 17.7%. At ρ = 0.5 you've already captured almost all of the diversification there is.  
 3. Min-variance only needs Σ, which can be estimated fairly precisely. Max-Sharpe also needs μ, whose estimation error (≈σ/√T, about 6% a year even with 10 years of data) swamps the real differences between assets. The optimizer then overweights whichever assets got lucky in the sample.  
+
+## Day 23: Risk Parity and Rebalancing  
+
+Yesterday mean-variance optimization falls apart because expected returns are so hard to estimate. Risk parity gets around that: it uses only volatilities and correlations, which are far more stable. Rebalancing is how you hold a portfolio at its target. It has real costs, and it can add or subtract a small amount of return.  
+
+### Concept  
+1. **Capital weight vs risk weight**. The money you put in an asset is not the same as the risk it adds. For portfolio weights w and covariance Σ, each asset's risk contribution (its share of the portfolio variance) is:  
+```
+RC_i = w_i · (Σw)_i / (wᵀΣw), and all the RC_i add up to 1.
+```  
+Worked example: a "balanced" 60/40 portfolio. Say stocks have 16% vol, bonds 6% vol, and the correlation is 0:  
+- Stock variance piece: (0.6 × 0.16)² = 0.009216  
+- Bond variance piece: (0.4 × 0.06)² = 0.000576  
+- Stocks' share of risk = 0.009216 / 0.009792 = 94%  
+So 60/40 is really a stock portfolio with a little bond seasoning.  
+
+2. Inverse-volatility weights (the simple form of risk parity): `w_i ∝ 1/σ_i`.  
+With vols of 20% and 5%: 1/0.2 = 5 and 1/0.05 = 20, so the weights are 5/25 = 20% and 80%. Each position then has w·σ = 0.04, so with zero correlation the two assets contribute equal risk. Portfolio vol = √(0.04² + 0.04²) = 5.66%.  
+
+3. **Equal Risk Contribution (ERC)**: solve for weights where every RC_i = 1/N. This is the proper version, and it accounts for correlations. If all correlations are equal, it gives the same answer as inverse vol.  
+
+4. **The catch is leverage**. Risk parity portfolios are heavy in bonds and have low vol. To reach equity-like returns, funds lever them up, often 2–3x. That works until stocks and bonds fall together. 2022 is the textbook example: the stock-bond correlation turned positive and risk parity funds had a bad year.  
+
+5. **Rebalancing**. Weights drift as prices move. Start at 50/50; asset A rises 30% and B falls 10%. You now hold 65 vs 45, which is 59.1% / 40.9%.  
+- Turnover = Σ|target − current| = |0.5 − 0.591| + |0.5 − 0.409| = 18.2%. Cost = turnover × cost per unit traded.  
+- Rebalancing sells winners and buys losers. That helps when assets mean-revert relative to each other and hurts when one keeps trending up. It mainly keeps your risk where you intended it.  
+- Common schedules: calendar (monthly or quarterly) or threshold bands (rebalance only when a weight drifts more than 5% from target). Bands usually cut turnover a lot.  
+
+### What to look for  
+- In Part 1, how much of the 60/40 portfolio's risk comes from SPY. Expect well above 60%, though SPY/TLT correlation was often negative, so it may be less extreme than 94%. In the ERC row, risk% should come out about 33/33/33.  
+- Inverse vol and ERC weights should be similar. A big gap between them means correlations matter.  
+- In Part 2, compare buy-and-hold with monthly rebalancing: did rebalancing mostly change return, or mostly vol and max drawdown? Look at 2022 in the equity curves (runs["ERC, monthly"][0].loc["2022"]).  
+- Turnover/yr × 5 bps is roughly your annual cost drag. Is it material here?  
+- Bonus: rerun with cost_bps=50 to see when costs start to bite.  
+Simplification: the backtest rebalances at the same close it uses for the signal. That is fine for monthly allocation, but a live system would trade the next day.  
+
+### Quiz  
+1. Two uncorrelated assets have vols of 30% and 10%. What are the inverse-vol weights?  
+2. A 60/40 portfolio: stocks gain 20% and bonds are flat. What are the new weights, and what turnover is needed to rebalance back to 60/40?  
+3. Why does risk parity need only covariances, and in what market environment does a levered risk parity portfolio struggle most?  
+
+### Answers  
+1. 1/0.3 = 3.33 and 1/0.1 = 10, total 13.33, so 25% / 75%.  
+2. Values go to 72 and 40 (total 112), so the new weights are 64.3% / 35.7%. Turnover = |0.643 − 0.6| + |0.357 − 0.4| ≈ 8.6%.  
+3. It sets weights by equalizing each asset's risk contribution, and that uses only vols and correlations. It never needs expected returns, which are the unstable input. It struggles most when stocks and bonds fall together (positive stock-bond correlation, rising inflation and rates, as in 2022). Leverage makes those losses bigger, and higher rates also raise the cost of borrowing.  
+
