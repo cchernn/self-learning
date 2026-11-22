@@ -952,3 +952,47 @@ task suite ──► run agent (k trials each) ──► graders ──► pass 
 2. It's brittle. Parallel calls, a different order or a harmless extra call are all valid but would fail it. Check what must happen ("must call", "never call", "≤ N turns"), not one exact path.  
 3. (a) Self-preference / leniency bias: use a different model as judge, or give it a reference answer and a strict rubric. (b) 1–10 scores are noisy and drift: use pass/fail per rubric item. (c) No reference means it can't catch factual errors: supply ground-truth facts, and spot-check a sample of verdicts by hand.  
 
+## Day 23: Observability: tracing, structured logs, replay  
+
+You need the whole trajectory, what the model asked for, what each tool returned, how long it took, what it cost  
+
+### Concept  
+```
+ query() message stream          hooks (SDK calls you)
+ ─────────────────────           ─────────────────────
+ AssistantMessage                PreToolUse   → tool_start
+   TextBlock    → model_text     PostToolUse  → tool_end (+duration_ms)
+   ToolUseBlock → model_call     PostToolUseFailure → tool_fail
+   .usage       → tokens         Stop / SubagentStop
+ UserMessage                         
+   ToolResultBlock → is_error    
+ ResultMessage → cost, turns, session_id
+            \                    /
+             ──► one JSONL file per run ──► replay / grep / pandas
+```  
+Rules that hold up in production:  
+1. **Structured, not print()**. One JSON object per line, all with the same keys: run_id, t_ms, event. You can load it with pd.read_json(path, lines=True), the same way you'd handle trade logs.  
+2. Correlate on IDs. tool_use_id links the model's request, the hook's start and end, and the result. That matters with parallel calls, where events interleave. session_id links the run to a resumable session (Day 12).  
+3. Clip payloads. Log the first ~300 chars and the length. Full tool outputs make logs huge and can leak secrets.  
+4. Observe, don't steer. An observing hook returns {}. If it raises, it can break the run, so keep it simple.  
+5. Replay = read the log, not re-call the model. Rebuilding the timeline from the file costs no usage and shows exactly what happened. That's different from a full "re-execute", which you'd do with recorded tool outputs during evals (Day 22).  
+
+Two gotchas:  
+- When your own handler returns is_error: True, the tool still ran normally, so it usually shows up as PostToolUse, not PostToolUseFailure. Track errors from ToolResultBlock.is_error in the stream as well.  
+- ResultMessage.total_cost_usd is the API-equivalent estimate. On your subscription it shows relative cost, not what you're billed. We'll use it for tiering on Day 24.  
+
+### What to look for  
+- The three get_price calls probably happen in parallel. Their tool_start lines will sit close together in t_ms and may finish out of order. tool_use_id is how you pair each start with its end.  
+- TSLA should appear as an error in the summary count. Then check whether the final answer admits TSLA is unknown or quietly makes up a price. That's the kind of thing a trace is for.  
+- Open the raw .jsonl and compare the model_usage rows across turns. Input tokens grow each turn, which is Day 5's context growth showing up in real data.  
+
+### Quiz  
+1. Why log both model_tool_call (from the stream) and tool_start (from the hook) when they look like the same event?  
+2. Your orchestrator fans out five workers with asyncio.gather, and every worker writes to traces/. What do you need in each record so you can rebuild "which worker did what, under which overall request"?  
+3. A teammate wants to log full tool outputs "for completeness" on an agent that reads broker statements. Give two reasons to push back, and say what you'd log instead.  
+
+### Answers  
+1. They are different facts. The stream event shows what the model asked for. The hook shows what actually ran and how long it took. They can differ: a call gets denied by permissions (Day 13), changed by a PreToolUse hook, or never finishes. Having both lets you spot that gap. The stream also carries text and usage, which hooks don't see.  
+2. A shared trace_id for the top-level request, a separate run_id for each worker, a parent or agent label (the hook's agent_type, or your worker name), plus tool_use_id and session_id. That's the same model as OpenTelemetry's trace → span → child span. Write one file per run, or a single file with these keys, and you can group the records any way you need.  
+3. Statements contain account numbers, balances and personal details, and logs get copied, synced and read by more people and tools than your app does. Full outputs also make logs huge and slow to search. Log a clipped preview, the length, a hash of the content (so you can tell whether two outputs matched), and key derived fields (row count, date range). Redact known secret patterns before writing.  
+
