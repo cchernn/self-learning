@@ -996,3 +996,43 @@ Two gotchas:
 2. A shared trace_id for the top-level request, a separate run_id for each worker, a parent or agent label (the hook's agent_type, or your worker name), plus tool_use_id and session_id. That's the same model as OpenTelemetry's trace → span → child span. Write one file per run, or a single file with these keys, and you can group the records any way you need.  
 3. Statements contain account numbers, balances and personal details, and logs get copied, synced and read by more people and tools than your app does. Full outputs also make logs huge and slow to search. Log a clipped preview, the length, a hash of the content (so you can tell whether two outputs matched), and key derived fields (row count, date range). Redact known secret patterns before writing.  
 
+## Day 24: Cost and latency  
+
+### Concept  
+Where cost and latency come from  
+```
+cost  ≈ Σ over turns (input tokens + output tokens) × model price
+time  ≈ Σ over turns (model latency) + tool time
+```  
+
+The five levers  
+1. Model tiering. Use Haiku for narrow, high-volume jobs (fetch, extract, classify, summarise one doc). Use Sonnet or Opus for the lead or planner, the synthesis step and hard judgement calls. In the SDK you set model="haiku" on a worker with AgentDefinition(..., model="haiku") and put the lead on "sonnet" (Day 16).  
+2. Caching. The CLI caches the stable prefix of the prompt (system prompt + tool definitions) automatically. A cache read costs about 10% of normal input and comes back faster. Keep that prefix stable: don't put timestamps or random IDs in your system prompt.  
+3. Fewer turns. Encourage parallel tool calls ("call tools in parallel") and design coarser tools, e.g. get_closes(symbols=[...]) instead of one call per symbol (Day 2–3).  
+4. Early stopping. max_turns catches loops. max_budget_usd is a hard spending cap: the run ends with subtype == "error_max_budget_usd". effort="low" cuts thinking on models that support it.  
+5. Smaller context. tools=[] drops the built-in tool definitions (thousands of tokens). Keep tool outputs small (Day 3) and keep subagents isolated (Day 17).  
+
+What ResultMessage gives you  
+- duration_ms: total wall time. duration_api_ms: time spent waiting on the model.  
+- num_turns, subtype (success, error_max_turns, error_max_budget_usd…)  
+- usage: input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens  
+- total_cost_usd: an estimate  
+- model_usage: a per-model breakdown (inputTokens, outputTokens, costUSD…), which shows exactly what your Haiku workers cost compared with your lead.  
+
+### What to look for  
+- Haiku and Sonnet should give the same correct answer (AAPL rose more, ~3.0% vs ~1.1%), with Haiku noticeably cheaper and usually faster.  
+- turns should be about 2 if both tool calls went out in parallel. If you see 3, the model called them one at a time.  
+- On the second Haiku run, cache read should be large and cache write small: that's the prefix cache working.  
+- The tiny-budget run should end with error_max_budget_usd. Note it may only stop after the turn that crosses the cap, because the cap is checked between turns.  
+- model_usage may list a model you didn't pick. The CLI sometimes uses a small model for background housekeeping.  
+
+### Quiz  
+1. Your agent runs 12 turns and its context grows to 40k tokens. Why does cutting it to 6 turns save far more than trimming 500 tokens from the system prompt?
+2. You put f"Current time: {datetime.now()}" at the top of your system prompt. What does that do to caching, and how would you fix it?
+3. In a lead + 5 parallel workers research system, where would you use Haiku and where would you keep Sonnet/Opus? Which mistake costs more: a weak worker or a weak lead?
+
+### Answers  
+1. Every turn re-sends the whole growing context, so total input is roughly a sum over all turns. Fewer turns removes whole re-sends of 20–40k tokens. 500 tokens × 12 turns is only ~6k.  
+2. The prefix changes on every call, so the cache never hits and you pay full input price plus extra latency every time. Keep the system prompt static and pass the time in the user message (or as a tool result) after the cached prefix.  
+3. Haiku for the workers: narrow, well-specified searching or extraction, run in parallel, so cost scales by 5. Sonnet/Opus for the lead: decomposition and synthesis. A weak lead usually costs more, because a bad plan wastes all the worker runs and a bad synthesis spoils good inputs. A weak worker's mistake is local, and the lead can often catch or retry it.  
+
