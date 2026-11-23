@@ -191,3 +191,12 @@ A row store (Postgres, CSV) keeps each record together, which suits fecthing or 
 4. Run SELECT * FROM parquet_metadata('trips.parquet') and find the row groups, compression codec and min/max stats.  
 Done when: you have a 4-line table (size, aggregate time, full-scan time, compression) in week4/notes.md.  
 
+## Day 24: Cloud warehouse  
+Partitioning and clustering  
+Partitioning splits a table into separate chunks by one column. If a query filters on that column, the engine reads only the matching partitions (partition pruning).  
+Clustering sorts the data inside each partition by up to a few columns, so filters on those columns skip blocks too.  
+
+### Tasks  
+Make two copies of your raw table: one plain, and one partitioned by date column and clustered by a column you often filter on (`PARTITION BY DATE(ts) CLUSTER BY ...`). If you're on DuckDB, write the second copy as Parquet with `PARTITION BY (year, month)` instead.  
+Run the same query on both copies: a filter on one day plus a filter on the cluster column. Note the bytes processed (BigQuery query details) or the run time and files read (DuckDB EXPLAIN ANALYZE)  
+
