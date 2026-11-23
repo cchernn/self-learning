@@ -930,3 +930,69 @@ Simplification: the backtest rebalances at the same close it uses for the signal
 2. Values go to 72 and 40 (total 112), so the new weights are 64.3% / 35.7%. Turnover = |0.643 − 0.6| + |0.357 − 0.4| ≈ 8.6%.  
 3. It sets weights by equalizing each asset's risk contribution, and that uses only vols and correlations. It never needs expected returns, which are the unstable input. It struggles most when stocks and bonds fall together (positive stock-bond correlation, rising inflation and rates, as in 2022). Leverage makes those losses bigger, and higher rates also raise the cost of borrowing.  
 
+## Day 24: Capstone: an honest strategy evaluation checklist  
+
+### The Checklist
+#### A. Is the backtest built correctly? (Days 1, 21)  
+1. No lookahead. Signals use data up to close t; returns are earned from t+1. Use .shift(1).  
+2. Adjusted prices (splits and dividends), and no survivorship bias in your universe.  
+3. Realistic costs: spread, slippage and impact for every trade. Then stress-test at 2–4× those costs.  
+4. Log vs simple returns used correctly: simple returns across assets, log returns across time.  
+
+#### B. Is the performance good? (Days 2–5, 19)  
+5. CAGR, volatility, Sharpe, Sortino, Calmar, all annualized correctly with √252.  
+6. Max drawdown and its duration. Could you actually sit through it?  
+7. Tail risk: VaR/ES, plus skew and kurtosis. A high Sharpe with negative skew can hide a blow-up.  
+8. Compare against a benchmark (buy-and-hold). Beating zero is not enough.  
+
+#### C. Is it statistically real? (Days 6–13)  
+9. t-stat of the active return, with a rough check: t ≈ Sharpe × √years.  
+10. Block bootstrap confidence interval on Sharpe, or on the Sharpe difference vs the benchmark.  
+11. Count every variant you tried (N) and compare your best Sharpe to the luck hurdle (deflated Sharpe idea).  
+12. Out-of-sample: keep a hold-out period you never tuned on. Walk-forward is even better.  
+
+#### D. Is it robust? (Days 8–10, 15–18)  
+13. Parameter plateau, not a peak. Neighbouring parameters should also work.  
+14. Regimes: results by year and in crashes. Remember that correlations rise in a crisis.  
+15. For mean reversion or pairs: stationarity/cointegration tests that still pass out of sample, and a half-life that makes sense.  
+16. Beta and alpha: is it just disguised market exposure?  
+
+#### E. Can you trade it? (Days 20–23)  
+17. Position sizing: volatility targeting, or fractional Kelly (≤ ½).  
+18. Capacity and turnover: gross edge minus turnover × cost must stay > 0.  
+19. How it fits the portfolio: correlation with what you already hold.  
+20. Paper trade on Alpaca before using real money, and compare live fills with the backtest.  
+
+### The key idea: the luck hurdle  
+Suppose a strategy has zero skill. Its annualized Sharpe estimate then has a standard deviation of about 1/√years. If you try N variants and keep the best one, luck alone gives you about:  
+```
+E[max SR] ≈ Z_N / √years, where Z_N = expected maximum of N standard normals ≈ (1−γ)Φ⁻¹(1−1/N) + γΦ⁻¹(1−1/(Ne)), with γ ≈ 0.577.
+```
+Worked example: 3 years of data and 20 variants tried. Z₂₀ ≈ 1.87, so the hurdle is ≈ 1.87/√3 ≈ 1.08.  
+Your best Sharpe of 1.0 is therefore below what pure luck delivers. Looked at alone, t ≈ 1.0 × √3 = 1.73 (p ≈ 0.08), which is not convincing either.  
+
+### What to look for:  
+- Table: the SMA filter usually has a smaller MaxDD and lower volatility than buy-and-hold, but often a lower CAGR. Does it hold up out of sample (2022 onward, which includes the 2022 bear market)?  
+- t-stat and bootstrap CI: does the Sharpe-difference interval include 0? If it does, you have no evidence of an edge over simply holding SPY.  
+- Grid: is the Sharpe fairly flat across 50–250 days (a plateau) or spiky (a fragile peak)?  
+- Cost stress: with only a few trades a year, costs should barely matter here. A high-turnover strategy would look very different.  
+
+### Final project brief  
+Pick one idea: momentum on a basket of sector ETFs, a cointegrated pair (Day 18), or a volatility-targeted SPY/TLT mix (Days 20, 23). Then:  
+1. Write down your hypothesis and the total N of variants you'll try before you look at results.  
+2. Lock away the last ~25% of the data as a hold-out.  
+3. Build the backtest with the Section A rules, then run every item in B–D.  
+4. Size it with volatility targeting and check it against Section E.  
+5. Run the hold-out once. Accept the answer.  
+7. If it survives, paper trade it on Alpaca for 1–3 months and compare live vs backtest performance and fills.  
+Write a one-page report: hypothesis, N, IS/OOS metrics, CI, luck hurdle, cost stress, verdict.  
+
+### Quiz
+1. You tried 30 variants on 4 years of data, and your best one has a Sharpe of 0.9. Roughly what Sharpe would luck alone give you? (Z₃₀ ≈ 2.04) Is 0.9 impressive?  
+2. Why must the signal be .shift(1)'d before you multiply it by returns? What happens to the backtest if you forget?  
+3. A strategy makes 8%/yr gross and does 40 round trips a year, paying 10 bps per one-way trade. What is its approximate net return?  
+
+### Answers  
+1. Hurdle ≈ 2.04 / √4 = 1.02. A best-of-30 Sharpe of 0.9 is below what luck alone produces, so it's not evidence of skill.  
+2. Without the shift, you trade on today's close and also earn today's return, which is lookahead bias. The backtest becomes inflated, often hugely, and none of it can be traded.  
+3. 40 round trips = 80 one-way trades × 0.10% = 8%/yr in costs, so the net return is ≈ 0%. All of the edge goes to costs.  
