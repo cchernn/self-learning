@@ -200,3 +200,18 @@ Clustering sorts the data inside each partition by up to a few columns, so filte
 Make two copies of your raw table: one plain, and one partitioned by date column and clustered by a column you often filter on (`PARTITION BY DATE(ts) CLUSTER BY ...`). If you're on DuckDB, write the second copy as Parquet with `PARTITION BY (year, month)` instead.  
 Run the same query on both copies: a filter on one day plus a filter on the cluster column. Note the bytes processed (BigQuery query details) or the run time and files read (DuckDB EXPLAIN ANALYZE)  
 
+## Day 25: Cloud warehouse  
+Most cloud warehouses charge for **compute** (bytes scanned on demand, or credits/slots per second) and **storage** (GB per month, cheaper once data goes "long-term").  
+What lowers cost is selecting only the columns you need, filtering on partition columns, and clustering.  
+Snowflake bills warehouse uptime, so auto-suspend matters more.  
+
+### Tasks  
+Use raw table loaded and the partitioned copy from yesterday. Run these 4 queries and write down the bytes processed for each. In BigQuery, use the dry-run estimate or Job Info. In DuckDB, use `EXPLAIN ANALYZE` plus the time taken.  
+1. SELECT * on the unpartitioned table  
+2. 2 columns only, same table  
+3. 2 columns + a one-day date filter, unpartitioned  
+4. Same as #3 on the partitioned table  
+Then set a guardrail. In BigQuery, set **maximum bytes billed** limit. Snowflake, set auto-suspend to 60s.  
+
+
+
