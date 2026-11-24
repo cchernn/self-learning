@@ -1036,3 +1036,42 @@ What ResultMessage gives you
 2. The prefix changes on every call, so the cache never hits and you pay full input price plus extra latency every time. Keep the system prompt static and pass the time in the user message (or as a tool result) after the cached prefix.  
 3. Haiku for the workers: narrow, well-specified searching or extraction, run in parallel, so cost scales by 5. Sonnet/Opus for the lead: decomposition and synthesis. A weak lead usually costs more, because a bad plan wastes all the worker runs and a bad synthesis spoils good inputs. A weak worker's mistake is local, and the lead can often catch or retry it.  
 
+## Day 25: Failure modes - loops, hallucinated args, runaway usage  
+
+Agents rarely crash, they fail quietly.  
+You won't catch these by reading the final answer, you catch them with cheap detectors in your own code.  
+```
+Failure              Symptom                      Defence
+-------------------  ---------------------------  ------------------------------
+1. Hallucinated args Made-up IDs/tickers/fields   Validate in handler, is_error
+                                                  + list the valid options
+2. Loops             Same (tool, args) repeating  PreToolUse hook counts calls,
+                     "try again" spirals          denies after N repeats
+3. Runaway usage     Many turns, rising cost      max_turns, max_budget_usd,
+                                                  tool-call cap, check subtype
+```  
+
+Some principles:  
+- Errors teach. Don't just say "invalid". Say "Unknown ticker X. Valid: [...]". The model fixes itself on the next turn, and that saves a turn.  
+- Avoid "try again" in error text. It invites loops. Say whether the error is retryable, and how many times.  
+- Detect in code, not in the prompt. "Don't loop" in the system prompt helps, but a hook that counts calls can't be talked out of it.  
+- Layered backstops. Use a hook (smart, specific), then max_turns (blunt), then max_budget_usd (last resort). On your subscription the cost is an estimate, but it still tracks how much you're using.  
+- Never trust a run that didn't end in subtype == "success". error_max_turns and error_max_budget_usd mean the answer is incomplete. Log it or alert on it.  
+- Other quiet failures to watch for: the agent claims it did something it never called a tool for (compare result against the tool calls you saw), and it gives up too early (num_turns == 1 on a task that needs tools).  
+
+### What to look for  
+- A guessed ticker for Public Bank (e.g. PBBANK) comes back as an ERR. The model reads the valid list and gives up on it honestly, without inventing a price.  
+- TENAGA is called once or twice. If the model obeys "keep retrying", you'll see [GUARD] blocked on the 3rd identical call.  
+- A final answer that gives prices for MAYBANK and CIMB and says TENAGA and Public Bank failed.  
+- END subtype=success with a small turn count.  
+
+### Quiz  
+1. Your loop guard keys on exact (tool, args). The model starts calling get_quote({"ticker":"TENAGA "}), then "tenaga", then "Tenaga Nasional". Why does the guard miss this, and how would you fix it?  
+2. A run ends with subtype="error_max_budget_usd" but result holds a confident, complete-looking report. Should your pipeline use it? Why or why not?  
+3. Why is "Unknown ticker 'X'. Valid: [...]" better than raising a Python exception in the handler, and better than silently returning the closest match?  
+
+### Answers  
+1. The arguments differ as strings, so every call looks new. Normalise before keying (upper().strip(), map aliases), and add a coarser counter: errors per tool, or calls per tool name. A check like "3 consecutive errors from the same tool → deny" catches near-duplicate loops.  
+2. No, not automatically. The run was cut off, so the report may rest on missing tool results or be partly invented. Flag it, log the trajectory, and either rerun with a bigger budget or show it as incomplete. A confident tone tells you nothing about whether it's complete.  
+3. An exception gives the model a vague error, or breaks the run, and teaches it nothing. Silently fuzzy-matching can return the wrong instrument's price without anyone noticing, which is the worst outcome in trading. A structured is_error that lists the valid options lets the model correct itself in one turn, or tell the user plainly that the ticker isn't supported.  
+
