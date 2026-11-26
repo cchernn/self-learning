@@ -213,5 +213,12 @@ Use raw table loaded and the partitioned copy from yesterday. Run these 4 querie
 4. Same as #3 on the partitioned table  
 Then set a guardrail. In BigQuery, set **maximum bytes billed** limit. Snowflake, set auto-suspend to 60s.  
 
+## Day 26: Cloud warehouse  
+If you wrap the column in a function, compare it to a subquery, or don't filter on it at all, the engine scans the whole table again.  
+Clustering sorts the data inside each partition, so filters on other columns get cheaper too.  
 
+### Tasks  
+1. Create two copies of your raw table: one unpartitioned, one partitioned by day on your timestamp column. In BigQuery use PARTITION BY DATE(ts). In DuckDB, write Hive-partitioned Parquet with COPY … (PARTITION_BY (dt)).  
+2. Run the same 3 queries on both copies: one filtering a single day, one filtering a 7-day range, and one with no date filter. Write down the bytes processed (BigQuery's dry run shows this) or the run time (DuckDB's EXPLAIN ANALYZE).  
+3. Debug one: rewrite the single-day query so pruning stops working, for example WHERE FORMAT_DATE('%Y-%m', DATE(ts)) = '2026-11' or WHERE CAST(ts AS STRING) LIKE '2026-11-2%'. Confirm the scan jumps back up, then fix the filter.  
 
