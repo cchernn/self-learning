@@ -222,3 +222,10 @@ Clustering sorts the data inside each partition, so filters on other columns get
 2. Run the same 3 queries on both copies: one filtering a single day, one filtering a 7-day range, and one with no date filter. Write down the bytes processed (BigQuery's dry run shows this) or the run time (DuckDB's EXPLAIN ANALYZE).  
 3. Debug one: rewrite the single-day query so pruning stops working, for example WHERE FORMAT_DATE('%Y-%m', DATE(ts)) = '2026-11' or WHERE CAST(ts AS STRING) LIKE '2026-11-2%'. Confirm the scan jumps back up, then fix the filter.  
 
+## Day 27: Cloud warehouse  
+
+### Tasks  
+1. Load your Week 2–3 data as raw_<name> tables, keeping the columns as they are (this is the "L" of ELT).  
+2. Make a second copy partitioned by your main date column, and cluster it on one filter column if your warehouse supports that.  
+3. Run the same date-filtered query on both copies. Write down the bytes processed, or the time and files read in DuckDB.  
+4. Commit load_warehouse.sql/.py plus a rough partitioning.md that shows the two numbers side by side.  
