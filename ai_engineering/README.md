@@ -1169,4 +1169,47 @@ Run it twice:
 2. The transcript isn't a reliable ledger. The model can misremember, compaction can drop details, and a crash between the tool succeeding and the reply being saved leaves the transcript out of step with reality. Reloading the whole history to ask also costs tokens. Use deterministic code over your own state for control flow, and let the model handle judgment.  
 3. The context keeps growing. Each resume reloads more history, so cost and latency go up, compaction kicks in and old noise affects new decisions. Instead, start a fresh session each night (or per batch). Carry over only a small summary or the key facts from your state file in the prompt, the same distilled-memory idea as Day 12.  
 
+## Day 28: Frameworks compared, and when to use one  
+Picking a framework is a lock-in decision. Each one hands you a loop, tools, memory and tracing, and its own ideas about how agents should be built.  
+
+### The landscape (what each one is):  
+- **Claude Agent SDK**: the Claude Code harness as a library. You get a full agent loop plus built-in tools (Bash, Read/Edit, Grep, WebSearch), subagents, hooks, permissions, sessions and auto-compaction. Best for agents that work on files, code and the web, out of the box. It is Claude-only.  
+- **OpenAI Agents SDK**: a light set of primitives: Agent, Runner, @function_tool, handoffs (Day 19), guardrails and built-in tracing. Small and easy to learn. It is designed around OpenAI models, though other providers can be plugged in.  
+- **LangGraph**: you draw the agent as a state graph (nodes = steps, edges = control flow). Its strengths are durable checkpoints, pausing for a human (human-in-the-loop interrupts) and replay (Day 27). Best when the control flow is complex and must be explicit and auditable. It is model-agnostic and has the most boilerplate.  
+- **Others**: Pydantic AI (typed, validated outputs), CrewAI (role-based "crews"), Google ADK and Microsoft's agent framework (cloud-ecosystem fits). They share the same ideas with different defaults.  
+- **Hand-rolled loop (Day 4)**: about 50 lines of while stop_reason == "tool_use". You have full control, zero magic, and you build retries, tracing and compaction yourself.  
+
+### How to decide  
+```
+Need built-in file/code/web tools fast? → Claude Agent SDK
+Complex branching, pauses, audit trail? → LangGraph
+Simple multi-agent with handoffs?       → OpenAI Agents SDK / Claude SDK
+One tool, one model, tight latency?     → hand-roll (or no agent at all)
+Must swap model vendors often?          → model-agnostic framework
+```  
+**Rule of thumb**: a framework helps once you would otherwise rebuild its features yourself (tracing, retries, compaction, checkpoints). It hurts when you're fighting its abstractions or can't see what prompt it actually sent. In every case, keep your tool logic framework-free: plain Python functions plus JSON Schemas, wrapped by a thin adapter. Swapping frameworks then means rewriting only the adapter.  
+```
+[ core: plain functions + schemas ]  ← tested without any model
+           │
+   ┌───────┼────────────┐
+ adapter  adapter     adapter
+ Claude   OpenAI      LangGraph
+ @tool    @function_  ToolNode
+          tool
+```  
+
+### What to look for  
+- core test: prints before any model call. Your logic is testable with no agent attached.  
+- Two position_value calls, possibly in the same turn. TSLA comes back as an is_error result listing the known symbols, and the answer should say TSLA is unavailable instead of inventing a price (NVDA = 1412.0).  
+- Note num_turns and the cost: this is the framework's overhead on a tiny task.  
+
+### Quiz  
+1. Your trading agent must pause before every order, wait hours for your approval, and survive a server restart. Which framework strengths matter most, and why?
+2. A teammate wants LangGraph for an agent that calls one weather tool and answers. What's your design-review comment?  
+3. Why keep tool functions free of framework imports, even if you never plan to switch?  
+
+### Answers  
+1. Durable checkpoints and human-in-the-loop interrupts, which are LangGraph's core strengths. With the Claude SDK you'd combine a can_use_tool/PreToolUse approval gate with session resume and your own persisted state (Day 27). Either way, the pause must live in durable storage, not in memory.  
+2. That's overkill. A graph adds boilerplate for a single linear tool call. Use the Agent SDK with one tool, a hand-rolled loop, or even a plain workflow (Day 1): call the API, then format the answer.  
+3. You can unit-test them with no model calls and no cost, reuse them across agents, MCP servers and plain scripts, and keep framework churn (APIs change often) confined to one thin adapter.  
 
