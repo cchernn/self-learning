@@ -229,3 +229,12 @@ Clustering sorts the data inside each partition, so filters on other columns get
 2. Make a second copy partitioned by your main date column, and cluster it on one filter column if your warehouse supports that.  
 3. Run the same date-filtered query on both copies. Write down the bytes processed, or the time and files read in DuckDB.  
 4. Commit load_warehouse.sql/.py plus a rough partitioning.md that shows the two numbers side by side.  
+
+## Day 28: Cloud warehouse  
+
+### Tasks  
+1. Make sure the raw tables load cleanly from one script or command, and commit them to your repo.  
+2. Run the same date-filtered query on the partitioned and unpartitioned tables. Record the bytes scanned and the run time for each (BigQuery's query details, or EXPLAIN ANALYZE in DuckDB).  
+3. Add week4/README.md with three short sections: What I built, What broke, What I learned. Include a small table of your before/after numbers.  
+4. Tick "Week 4 — Raw data in a warehouse" in your plan's progress checklist.  
+
